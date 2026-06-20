@@ -1,0 +1,37 @@
+{
+  "$schema": "context-graph-v0",
+  "metadata": {
+    "generator": { "name": "fixture", "version": "0.0.0" },
+    "provenance": {
+      "repository_origin": "github.com/org/repo",
+      "commit_sha": "4b825dc642cb6eb9a00b213b2e3fc7e42d99217c",
+      "tree_hash": "0000",
+      "generated_at": "2026-06-20T00:00:00Z"
+    }
+  },
+  "nodes": {
+    "src/index.ts": { "content_hash": "a1", "token_count": 100, "exports": ["main"] },
+    "src/auth/session.ts": {
+      "content_hash": "a2",
+      "token_count": 200,
+      "exports": ["createSession", "validateSession"]
+    },
+    "src/auth/jwt.ts": { "content_hash": "a3", "token_count": 150 },
+    "src/auth/jwt.test.ts": { "content_hash": "a4", "token_count": 120 },
+    "src/db.ts": { "content_hash": "a5", "token_count": 300 }
+  },
+  "edges": [
+    { "source": "src/index.ts", "target": "src/auth/session.ts", "type": "STATIC_IMPORT", "resolved": true, "line": 1 },
+    { "source": "src/auth/session.ts", "target": "src/db.ts", "type": "STATIC_IMPORT", "resolved": true, "line": 2 },
+    { "source": "src/auth/jwt.ts", "target": "src/db.ts", "type": "STATIC_IMPORT", "resolved": true, "line": 3 },
+    {
+      "source": "src/auth/session.ts",
+      "target": null,
+      "type": "DYNAMIC_IMPORT",
+      "resolved": false,
+      "raw_specifier": "@/plugins/${name}",
+      "resolution_error": "dynamic_template_literal",
+      "line": 9
+    }
+  ]
+}

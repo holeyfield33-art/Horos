@@ -60,3 +60,43 @@ and must bump the relevant version identifier.
   form; public keys the raw 32-byte form. Signing uses Node's deterministic
   Ed25519, so a fixed seed produces a fixed public key and a fixed signature over
   a fixed message — relied on by the frozen signing vector.
+
+## Selection pipeline (§6.1–6.3) — entrypoint_rules v1
+
+SPEC §6.1 lists the entrypoint rules and their scores but not the exact matching
+semantics, and §6.2 does not define score propagation through BFS. These are
+pinned here and versioned by `entrypoint_rules.version` (part of
+`selector_config_hash`), so any change is a visible, versioned change. **Flagged
+for review** — these are reasonable v1 heuristics, not spec-mandated exact rules.
+
+- **Matching normalization:** filename stems, directory names, and export names
+  are NFKC + lowercased, then compared for *exact equality* against the
+  normalized task tokens (§2.2). Stems drop every extension (`a.test.ts` → `a`).
+- **Rule stacking:** a node's entrypoint score is the sum of every rule it
+  matches (directory match counts once; exported-symbol match counts once).
+- **Test-pair (+30):** a test file whose subject stem matches a token boosts the
+  *subject* file (same directory, same stem, non-test), not the test file itself.
+  Test files are never selected (see heuristic filter) so scoring them directly
+  would be pointless.
+- **Config-route (+20):** a node that is the target of a `FRAMEWORK_ROUTE` or
+  `CONFIG_REFERENCE` edge and whose stem matches a token.
+- **BFS score propagation:** seeded by entrypoint scores at depth 0; for a
+  resolved edge `u -> v`, `score(v) = max(score(v), score(u) * edge_weight(type))`,
+  relaxed for `max_depth_hops` rounds (longest-product path, deterministic
+  regardless of edge order). Scores are rounded to 1e-6 to stabilize float
+  products for tie-breaking. Score is internal to ranking and is **not** written
+  to the receipt (the receipt records `rank`, not score, per §5).
+- **Heuristic filters (decision 4):** candidates matching the test pattern are
+  excluded `HEURISTIC_IGNORE_TESTS`; build/output paths `HEURISTIC_IGNORE_BUILD`.
+  Recorded as exclusions, never silently dropped.
+- **Depth-exceeded:** nodes reachable one hop beyond `max_depth_hops` are
+  recorded as `DEPTH_EXCEEDED` exclusions.
+- **Budget (§6.3):** ranked files are admitted in order while `files < max_files`
+  and `running_tokens + token_count <= max_tokens`; the first file that violates
+  either budget — and every file after it — is excluded `BUDGET_TRUNCATED`.
+- **Coverage:** `graph_frontier_size` counts edges leaving the visited region not
+  followed into the selection (unresolved edges from visited sources + resolved
+  edges from visited sources to unselected targets). `unresolved_symbols` records
+  `raw_specifier` (falling back to `resolution_error`) for unresolved edges whose
+  source was visited. `entrypoints` lists all discovered entrypoints (including
+  any later heuristically excluded). `rank` is 1-based.

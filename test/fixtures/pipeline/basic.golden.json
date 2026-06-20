@@ -1,0 +1,60 @@
+{
+  "task": "fix the auth session",
+  "result": {
+    "selection": [
+      {
+        "path": "src/auth/session.ts",
+        "content_hash": "a2",
+        "token_count": 200,
+        "rule": "entrypoint",
+        "rule_evidence": [
+          "exact_filename:session",
+          "containing_directory:auth"
+        ],
+        "rank": 1
+      },
+      {
+        "path": "src/db.ts",
+        "content_hash": "a5",
+        "token_count": 300,
+        "rule": "import_walk",
+        "rule_evidence": [
+          "edge:src/auth/session.ts->src/db.ts:STATIC_IMPORT"
+        ],
+        "rank": 2
+      },
+      {
+        "path": "src/auth/jwt.ts",
+        "content_hash": "a3",
+        "token_count": 150,
+        "rule": "entrypoint",
+        "rule_evidence": [
+          "containing_directory:auth"
+        ],
+        "rank": 3
+      }
+    ],
+    "exclusions": [
+      {
+        "path": "src/auth/jwt.test.ts",
+        "reason_code": "HEURISTIC_IGNORE_TESTS"
+      }
+    ],
+    "coverage": {
+      "files_scanned": 5,
+      "files_selected": 3,
+      "entrypoints": [
+        "src/auth/jwt.test.ts",
+        "src/auth/jwt.ts",
+        "src/auth/session.ts"
+      ],
+      "unresolved_symbols": [
+        "@/plugins/${name}"
+      ],
+      "excluded_candidates": [
+        "src/auth/jwt.test.ts"
+      ],
+      "graph_frontier_size": 1
+    }
+  }
+}
