@@ -1,0 +1,25 @@
+{
+  "$schema": "context-graph-v0",
+  "metadata": {
+    "generator": { "name": "fixture", "version": "0.0.0" },
+    "provenance": {
+      "repository_origin": "github.com/org/repo",
+      "commit_sha": "4b825dc642cb6eb9a00b213b2e3fc7e42d99217c",
+      "tree_hash": "0000",
+      "generated_at": "2026-06-20T00:00:00Z"
+    }
+  },
+  "nodes": {
+    "alpha.ts": {
+      "content_hash": "2f2d8ab6453896290e40a007f1df961cc6004062c86a0a1e6480e8ce201a58aa",
+      "token_count": 10
+    },
+    "beta.ts": {
+      "content_hash": "c0e2fb2776b08b94996d043b7cd19fae0dd5d4d2b987a185000dfd423d8c4fdf",
+      "token_count": 10
+    }
+  },
+  "edges": [
+    { "source": "alpha.ts", "target": "beta.ts", "type": "STATIC_IMPORT", "resolved": true, "line": 1 }
+  ]
+}
