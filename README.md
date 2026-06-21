@@ -19,13 +19,30 @@ Built against the v0.1 build order (`SPEC-v0.1.md` §8):
 
 - [x] **PR 0 — canonical forms and frozen test vectors (§2).** Every value that
       feeds a hash has exactly one defined byte form, proven by committed vectors.
-- [ ] PR 1 — graph artifact schema, loader, hard gates (§4)
-- [ ] PR 2 — selector config & weight policy hashing (§2.5, §6)
-- [ ] PR 3 — selection pipeline over fixture graphs (§6.1–6.3)
-- [ ] PR 4 — content re-verification gate (§6.4)
-- [ ] PR 5 — receipt generation and signing (§5)
-- [ ] PR 6 — verify CLI (§5.3)
-- [ ] PR 7 — TypeScript/JavaScript graph generator (§4)
+- [x] **PR 1 — graph artifact schema, loader, hard gates (§4).**
+- [x] **PR 2 — selector config & weight policy hashing (§2.5, §6).**
+- [x] **PR 3 — selection pipeline over fixture graphs (§6.1–6.3).**
+- [x] **PR 4 — content re-verification gate (§6.4).**
+- [x] **PR 5 — receipt generation and signing (§5).**
+- [x] **PR 6 — verify CLI (§5.3).**
+- [x] **PR 7 — TypeScript/JavaScript graph generator (§4).**
+
+## Verifying a receipt
+
+```sh
+horos verify <receipt.json> --graph <graph.json> --task "<task text>" \
+  [--config <config.json>] [--manual a.ts,b.ts] [--repo <dir>]
+```
+
+Re-runs selection from the supplied inputs and prints `PASS <receipt_hash>` or
+`FAIL <field>: <detail>` (exit 0 / 1; 2 on usage error). With `--repo` it also
+runs the §6.4 content re-verification gate.
+
+## Generating a graph (producer side)
+
+`generateGraph` (`src/generator`) walks a TS/JS project and emits a conformant
+artifact, delegating module resolution to the TypeScript resolver (tsconfig
+`paths`) and emitting unresolved edges as first-class members of the edge list.
 
 ## Canonical forms (PR 0)
 
