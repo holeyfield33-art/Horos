@@ -1,0 +1,64 @@
+{
+  "$schema": "context-graph-v0",
+  "metadata": {
+    "graph_id": "placeholder",
+    "generator": {
+      "name": "@horos/graph-gen-typescript",
+      "version": "1.2.4",
+      "command_executed": "graph-gen --project tsconfig.json",
+      "execution_mode": "ci"
+    },
+    "config_hash": "0000",
+    "provenance": {
+      "repository_origin": "github.com/org/repo",
+      "commit_sha": "4b825dc642cb6eb9a00b213b2e3fc7e42d99217c",
+      "tree_hash": "abcd",
+      "generated_at": "2026-06-20T22:30:00Z"
+    },
+    "resolver_stack": [
+      { "name": "typescript", "version": "5.8.2" },
+      { "name": "tsconfig-paths", "version": "5.2.1" }
+    ],
+    "coverage": {
+      "files_total": 3,
+      "files_indexed": 3,
+      "edges_total": 2,
+      "unresolved_edges": 1
+    },
+    "completeness": "partial"
+  },
+  "nodes": {
+    "src/index.ts": {
+      "file_path": "src/index.ts",
+      "language": "ts",
+      "content_hash": "1111",
+      "token_count": 100,
+      "exports": ["main"]
+    },
+    "src/auth/session.ts": {
+      "file_path": "src/auth/session.ts",
+      "language": "ts",
+      "content_hash": "2222",
+      "token_count": 200,
+      "exports": ["createSession", "validateSession"]
+    }
+  },
+  "edges": [
+    {
+      "source": "src/index.ts",
+      "target": "src/auth/session.ts",
+      "type": "STATIC_IMPORT",
+      "resolved": true,
+      "line": 12
+    },
+    {
+      "source": "src/router.ts",
+      "target": null,
+      "type": "DYNAMIC_IMPORT",
+      "resolved": false,
+      "raw_specifier": "@/utils/${strategy}",
+      "resolution_error": "dynamic_template_literal",
+      "line": 30
+    }
+  ]
+}

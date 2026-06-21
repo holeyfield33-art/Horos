@@ -1,0 +1,264 @@
+{
+  "_comment": "FROZEN canonical-form vectors (SPEC §2). Regenerate only via scripts/generate-vectors.ts after an intentional, versioned algorithm change.",
+  "cjson": [
+    {
+      "name": "object key ordering",
+      "inputs": [
+        {
+          "b": 2,
+          "a": 1,
+          "c": {
+            "y": true,
+            "x": null
+          }
+        },
+        {
+          "c": {
+            "x": null,
+            "y": true
+          },
+          "a": 1,
+          "b": 2
+        }
+      ],
+      "canonical": "{\"a\":1,\"b\":2,\"c\":{\"x\":null,\"y\":true}}",
+      "sha256": "d58852dd362fe823bcd9cc2eb2ff52e270f99e7de2b10fbdbd2ec3abecb3bef5"
+    },
+    {
+      "name": "number forms (integer collapse, -0, fraction)",
+      "inputs": [
+        {
+          "whole": 1,
+          "frac": 0.8,
+          "big": 1000000,
+          "neg": 0
+        },
+        {
+          "neg": 0,
+          "big": 1000000,
+          "frac": 0.8,
+          "whole": 1
+        }
+      ],
+      "canonical": "{\"big\":1000000,\"frac\":0.8,\"neg\":0,\"whole\":1}",
+      "sha256": "ebe24b68efb0a8401b343bff9a4aa604db167da6c2f6169e65d8a61f0a37614f"
+    },
+    {
+      "name": "unicode + numeric-string key sort by code point",
+      "inputs": [
+        {
+          "é": 1,
+          "a": 2,
+          "Z": 3,
+          "01": 4
+        },
+        {
+          "01": 4,
+          "Z": 3,
+          "a": 2,
+          "é": 1
+        }
+      ],
+      "canonical": "{\"01\":4,\"Z\":3,\"a\":2,\"é\":1}",
+      "sha256": "c3626d402faff85535851f33181494be0f4dc562a36af37b95af151b610fa913"
+    }
+  ],
+  "task": [
+    {
+      "name": "whitespace + case folding + stopword removal",
+      "inputs": [
+        "Fix the AUTH session bug",
+        "fix   THE    auth\tsession   BUG"
+      ],
+      "tokens": [
+        "fix",
+        "auth",
+        "session",
+        "bug"
+      ],
+      "canonical_hex": "5b22666978222c2261757468222c2273657373696f6e222c22627567225d",
+      "task_hash": "a8b1f6284f57cd7f788ec167ad313a987fde4f9ddc229de4ec265055532255ec"
+    },
+    {
+      "name": "NFKC ligature equivalence",
+      "inputs": [
+        "ﬁx the Auth",
+        "fix the auth"
+      ],
+      "tokens": [
+        "fix",
+        "auth"
+      ],
+      "canonical_hex": "5b22666978222c2261757468225d",
+      "task_hash": "79423c6e62d58f6754463682015b72c7ade3df98fda046511ed9ed1960f23018"
+    }
+  ],
+  "manifest": [
+    {
+      "name": "byte-sorted LF join",
+      "inputs": [
+        [
+          "src/b.ts",
+          "src/a.ts",
+          "README.md",
+          "src/a/b.ts"
+        ],
+        [
+          "README.md",
+          "src/a.ts",
+          "src/a/b.ts",
+          "src/b.ts"
+        ]
+      ],
+      "manifest_hex": "524541444d452e6d640a7372632f612e74730a7372632f612f622e74730a7372632f622e7473",
+      "tree_hash": "6e4e21df14a1e38d743188777f11600fd9d6e7d5d49c88dc20a7310bcf247124"
+    }
+  ],
+  "manual_include": [
+    {
+      "name": "byte-sorted cjson array",
+      "inputs": [
+        [
+          "src/policy/new_engine.ts",
+          "src/a.ts"
+        ],
+        [
+          "src/a.ts",
+          "src/policy/new_engine.ts"
+        ]
+      ],
+      "manual_include_hex": "5b227372632f612e7473222c227372632f706f6c6963792f6e65775f656e67696e652e7473225d",
+      "manual_include_hash": "ea887dd226bdf7a3b72bd172f76ddef5e757a23a10037acf7f10a0d39d0b8cf7"
+    }
+  ],
+  "selector_config": [
+    {
+      "name": "config hash stable under key reorder",
+      "inputs": [
+        {
+          "ranking_strategy": {
+            "max_files": 40,
+            "edge_weights": {
+              "STATIC_IMPORT": 1,
+              "RE_EXPORT": 0.8
+            },
+            "max_depth_hops": 3
+          }
+        },
+        {
+          "ranking_strategy": {
+            "edge_weights": {
+              "RE_EXPORT": 0.8,
+              "STATIC_IMPORT": 1
+            },
+            "max_depth_hops": 3,
+            "max_files": 40
+          }
+        }
+      ],
+      "selector_config_hash": "3c3ecf81dbc8c2413da3a768056fbfd1cb67ae332b766c1d23a54cc997193c37"
+    }
+  ],
+  "weight_policy": [
+    {
+      "name": "weight table hash stable under key reorder",
+      "inputs": [
+        {
+          "STATIC_IMPORT": 1,
+          "RE_EXPORT": 0.8,
+          "DYNAMIC_IMPORT": 0.5
+        },
+        {
+          "DYNAMIC_IMPORT": 0.5,
+          "RE_EXPORT": 0.8,
+          "STATIC_IMPORT": 1
+        }
+      ],
+      "weight_policy_hash": "f2f807ac113516170217e9394607f698f279ab3a9563030173304c99e99d69da"
+    }
+  ],
+  "graph_artifact": [
+    {
+      "name": "graph hash stable under key reorder, null target preserved",
+      "inputs": [
+        {
+          "$schema": "context-graph-v0",
+          "edges": [
+            {
+              "source": "src/a.ts",
+              "target": null,
+              "type": "DYNAMIC_IMPORT",
+              "resolved": false
+            }
+          ],
+          "nodes": {
+            "src/a.ts": {
+              "content_hash": "abc",
+              "token_count": 10
+            }
+          }
+        },
+        {
+          "nodes": {
+            "src/a.ts": {
+              "token_count": 10,
+              "content_hash": "abc"
+            }
+          },
+          "edges": [
+            {
+              "type": "DYNAMIC_IMPORT",
+              "resolved": false,
+              "source": "src/a.ts",
+              "target": null
+            }
+          ],
+          "$schema": "context-graph-v0"
+        }
+      ],
+      "graph_artifact_hash": "1cf881d53cae2b90e3da41169357d5d5273d7c2746d977610eb19cf09bc448cd"
+    }
+  ],
+  "receipt_payload": [
+    {
+      "name": "receipt_hash excludes receipt_hash + signature fields",
+      "inputs": [
+        {
+          "version": "0.1",
+          "task": {
+            "task_hash": "deadbeef",
+            "task_class": "bugfix"
+          },
+          "manual_include": [
+            "src/a.ts"
+          ]
+        },
+        {
+          "version": "0.1",
+          "task": {
+            "task_hash": "deadbeef",
+            "task_class": "bugfix"
+          },
+          "manual_include": [
+            "src/a.ts"
+          ],
+          "receipt_hash": "SHOULD_BE_IGNORED",
+          "signature": {
+            "algorithm": "Ed25519",
+            "public_key": "00",
+            "value": "11"
+          }
+        }
+      ],
+      "receipt_hash": "32deaf6e0c4a990a0ea55771992d6a2cca821afeb92863a324950e09d0bb9251"
+    }
+  ],
+  "signing": {
+    "name": "Ed25519 deterministic sign/verify",
+    "seed_hex": "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
+    "public_key_hex": "3ccd241cffc9b3618044b97d036d8614593d8b017c340f1dee8773385517654b",
+    "message_cjson_hex": "7b226d616e75616c5f696e636c756465223a5b227372632f612e7473225d2c227461736b223a7b227461736b5f636c617373223a22627567666978222c227461736b5f68617368223a226465616462656566227d2c2276657273696f6e223a22302e31227d",
+    "signature_hex": "3cfe76d613c0ca4b98a556db0029bef5dc9c25100f0d97b70b23606c762ce65216dbe8333ed22866ff5b051f6f01bd74ce1a18839afb5628b4fa1d1f7ddc6800"
+  },
+  "_utf8_sanity": "61"
+}

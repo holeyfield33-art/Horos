@@ -1,0 +1,26 @@
+{
+  "name": "@horos/router",
+  "version": "0.1.0",
+  "description": "Horos — deterministic context router with signed, replayable provenance receipts.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "horos": "./dist/cli/horos.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "typescript": "^5.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.0",
+    "vitest": "^2.1.8"
+  }
+}
