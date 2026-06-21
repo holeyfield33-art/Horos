@@ -4,6 +4,9 @@
   "description": "Horos — deterministic context router with signed, replayable provenance receipts.",
   "type": "module",
   "license": "MIT",
+  "bin": {
+    "horos": "./dist/cli/horos.js"
+  },
   "engines": {
     "node": ">=20"
   },
