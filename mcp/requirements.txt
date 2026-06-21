@@ -1,0 +1,5 @@
+# Horos MCP server runtime dependencies (pinned — see DECISIONS-mcp.md).
+# This service MAY use pip deps; it is the orchestrator, not the stdlib-only generator.
+mcp==1.28.0
+uvicorn==0.49.0
+starlette==1.3.1
