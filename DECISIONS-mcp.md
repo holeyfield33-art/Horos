@@ -71,7 +71,24 @@ Chosen starting bounds (spec §8 defaults, conservative for Render's smaller pla
   - `unresolved_signal.unresolved_symbols` ← the router selection's
     `coverage.unresolved_symbols` (a distinct, router-side signal).
   - All three §6 fields are populated; `suggested_external_modules` is non-empty exactly
-    when the graph is `partial`.
+    when `selection_status == "partial"`.
+
+## `selection_status` discriminator — module_not_found, NOT `metadata.completeness`
+
+- The generator (`extract.py`/`classify_external`) marks **every** `external_boundary`
+  edge — stdlib *and* configured `external_modules` — as `resolved=False`, so
+  `artifact.metadata.completeness` is `"partial"` for any repo that imports anything
+  external, even when **every** dependency is correctly listed. Driving `selection_status`
+  off that flag would make the spec §3 `"complete"` state unreachable for any realistic
+  repo.
+- The directive M2 tests define the contrast as **deps listed → `complete`** vs **unlisted
+  third-party import → `partial`**. The discriminator that matches this is the presence of
+  `module_not_found` edges (genuinely unlisted deps), not `metadata.completeness`.
+- **Therefore:** `selection_status = "partial"` iff the graph has ≥1 `module_not_found`
+  edge; listed externals and stdlib (`external_boundary`) stay `complete`. This is also the
+  set surfaced as `suggested_external_modules`, so "partial" always comes with an
+  actionable list. Dynamic imports (`dynamic_template_literal`) are an expected by-policy
+  category and do not flip the status.
 
 ## Router invocation — "the one thing that must hold"
 

@@ -17,16 +17,19 @@ from __future__ import annotations
 import os
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.exceptions import ToolError
 from starlette.types import ASGIApp
 
 from .auth import BearerAuthMiddleware
+from .router import RouteError, route_context as _route_context
+from .workspace import CloneError
 
 SERVER_NAME = "Horos"
 DEFAULT_PORT = 8000
 
 
 def register_tools(mcp: FastMCP) -> None:
-    """Attach the tool surface (SPEC §3). M0: ``route_context`` is a stub."""
+    """Attach the tool surface (SPEC §3)."""
 
     @mcp.tool()
     def route_context(
@@ -39,19 +42,12 @@ def register_tools(mcp: FastMCP) -> None:
         """Clone a repo at a ref, generate its dependency graph, route the minimal
         context for a task via the Horos selector, and return the selected files plus
         a signed receipt.
-
-        M0 stub: returns the SPEC §3 response shape with placeholder values. The real
-        chain lands in M2.
         """
-        return {
-            "repo_commit": None,
-            "selection_status": "complete",
-            "selected_files": [],
-            "exclusions": [],
-            "unresolved_signal": None,
-            "suggested_external_modules": [],
-            "receipt": None,
-        }
+        try:
+            return _route_context(repo, task, ref, config, manual_include)
+        except (CloneError, RouteError) as exc:
+            # Clean, secret-free tool error (codes per SPEC §5/§6).
+            raise ToolError(f"{exc.code}: {exc.detail}") from None
 
 
 def build_mcp(host: str = "0.0.0.0", port: int = DEFAULT_PORT) -> FastMCP:
