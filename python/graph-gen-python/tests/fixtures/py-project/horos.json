@@ -1,0 +1,4 @@
+{
+  "python_source_roots": ["src"],
+  "external_modules": ["requests"]
+}

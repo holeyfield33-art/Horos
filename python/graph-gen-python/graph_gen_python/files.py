@@ -84,13 +84,21 @@ def discover_py_files(repo_root: Path, source_roots: tuple[str, ...]) -> list[st
     Prefers git-tracked files for reproducibility; falls back to a filesystem
     walk when the repo is not a git checkout.
     """
+    def _filter(candidates: list[str]) -> list[str]:
+        return [
+            c
+            for c in candidates
+            if c.endswith(".py") and _is_within_roots(c, source_roots)
+        ]
+
     tracked = _git_tracked_files(repo_root)
-    candidates = tracked if tracked is not None else _filesystem_py_files(repo_root)
-    py = [
-        c
-        for c in candidates
-        if c.endswith(".py") and _is_within_roots(c, source_roots)
-    ]
+    py = _filter(tracked) if tracked is not None else []
+    # Fall back to a filesystem walk when the target is not a git repo, or when no
+    # tracked .py exist under the roots (e.g. an uncommitted working copy). When
+    # tracked .py are present they are authoritative — gitignored/untracked junk is
+    # excluded, anchoring determinism to the committed tree.
+    if not py:
+        py = _filter(_filesystem_py_files(repo_root))
     return sorted(set(py))
 
 
