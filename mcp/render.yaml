@@ -1,0 +1,20 @@
+# Render service for the Horos MCP server (SPEC-mcp-server-v0 §10).
+# Deploy from the repo root; the Dockerfile lives at mcp/Dockerfile and needs the whole
+# repo as build context (it builds dist/ from src/ and includes the generator).
+services:
+  - type: web
+    name: horos-mcp
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./mcp/Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    envVars:
+      # Bearer token required on every MCP request. Mark as a secret; do not sync.
+      - key: HOROS_SERVER_SECRET
+        sync: false
+      # Read-only GitHub token (contents scope) for private clones. Secret; do not sync.
+      - key: GITHUB_TOKEN
+        sync: false
+      # Render injects PORT automatically; the server reads it. Resource caps may be
+      # tuned here if the plan's limits differ from the defaults (see DECISIONS-mcp.md).
