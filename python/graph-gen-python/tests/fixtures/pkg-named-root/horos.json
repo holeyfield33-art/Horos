@@ -1,0 +1,4 @@
+{
+  "python_source_roots": ["mypkg"],
+  "external_modules": []
+}

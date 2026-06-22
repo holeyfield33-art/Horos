@@ -67,6 +67,33 @@ generator. See `SPEC-python-generator-v0.md`.
   `--generated-at`. The same commit + same `horos.json` yields a byte-identical
   artifact and identical `graph_artifact_hash`.
 
+## Same-named-package resolution — v0.3.1 fix (Option A)
+
+**Bug:** When a source-root directory has the same name as the top-level package
+that the repo's own code imports by (e.g. `python_source_roots: ["django"]` and
+code doing `import django.urls`), the root-stripped index entry (`urls`) did not
+match the import name (`django.urls`). On Django: ~3,019 of ~4,500 edges wrongly
+`module_not_found`.
+
+**Fix chosen:** Option A — index both forms. In `ModuleIndex.__init__`, for every
+file that strips and resolves to a dotted name, also register the package-qualified
+form `{root_final_segment}.{dotted}` under the same root's sub-index via
+`setdefault` (first-wins preserved). This applies to every root ≠ `.`; the
+final segment of the root path is used (`src/lib` → prepend `lib`).
+
+**Why Option A over B:** keeps `resolve_absolute` simple; the index remains the
+single source of truth for all lookups; no per-call branching.
+
+**Edge cases verified (test_resolver.py):**
+- Same-named root (`mypkg/` + `source_roots=["mypkg"]`): absolute self-imports
+  resolve. No `module_not_found` for intra-package edges.
+- Differing names (`src/pkg` + `source_roots=["src"]`): `pkg.helpers` still
+  resolves via root-stripped form; `src.pkg.helpers` (the new qualified form)
+  resolves to the same key — both harmless and consistent.
+- Relative imports: unaffected — `absolutize_relative` already computes an
+  absolute dotted name before lookup; the fix makes that lookup hit in more cases.
+- No change to any existing fixture's resolved/unresolved classification.
+
 ## File discovery
 
 - `git ls-files` filtered to `*.py` under the configured source roots is

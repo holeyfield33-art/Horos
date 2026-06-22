@@ -57,6 +57,17 @@ class ModuleIndex:
                 if dotted is not None:
                     # First-wins within a root keeps resolution deterministic.
                     self._by_root[root].setdefault(dotted, key)
+                    # v0.3.1 Option A: also index the package-qualified form by
+                    # prepending the root's final path segment. This resolves
+                    # same-named-package imports: when source_root="mypkg" and
+                    # the file is mypkg/sub.py, code imports it as "mypkg.sub"
+                    # but the root-stripped form is only "sub". Register both.
+                    if root != ".":
+                        root_final = root.rstrip("/").rsplit("/", 1)[-1]
+                        if root_final:
+                            self._by_root[root].setdefault(
+                                f"{root_final}.{dotted}", key
+                            )
                 break
 
     @staticmethod
