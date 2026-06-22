@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  typescript:
+    name: TypeScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  python:
+    name: Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Build dist/ FIRST — the router-parity test (test_e2e.py::test_router_parity_pass)
+      # shells out to the built TS router. Without dist/ it self-skips, and a skip is
+      # not a pass. This step ensures the parity gate actually executes.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci && npm run build
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: cd python/graph-gen-python && python3 -m unittest discover -s tests
