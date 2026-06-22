@@ -125,5 +125,76 @@ class TestResolver(unittest.TestCase):
         self.assertEqual(j["resolution_error"], "external_boundary")
 
 
+class TestSameNamedPackageRoot(unittest.TestCase):
+    """v0.3.1 regression: root name == package name (e.g. source_roots=["mypkg"])."""
+
+    FIXTURE = Path(__file__).resolve().parent / "fixtures" / "pkg-named-root"
+    SOURCE_ROOTS = ("mypkg",)
+    EXTERNAL: tuple[str, ...] = ()
+
+    def setUp(self) -> None:
+        node_keys = discover_py_files(self.FIXTURE, self.SOURCE_ROOTS)
+        index = ModuleIndex(node_keys, self.SOURCE_ROOTS)
+        builder = EdgeBuilder(index, self.EXTERNAL)
+
+        init_key = "mypkg/__init__.py"
+        tree = ast.parse((self.FIXTURE / init_key).read_text())
+        self.edges = [e.to_dict() for e in builder.edges_for_file(init_key, tree)]
+        self.node_keys = set(node_keys)
+
+    def _resolved_target(self, target: str) -> dict[str, object] | None:
+        return next(
+            (e for e in self.edges if e.get("resolved") and e.get("target") == target),
+            None,
+        )
+
+    def test_from_import_resolves_to_node_key(self) -> None:
+        # `from mypkg.sub import x` must resolve to mypkg/sub.py, not module_not_found.
+        hit = self._resolved_target("mypkg/sub.py")
+        self.assertIsNotNone(hit, "mypkg.sub should resolve; got: " + str(self.edges))
+
+    def test_import_subpackage_resolves(self) -> None:
+        # `import mypkg.core` must resolve to mypkg/core/__init__.py.
+        hit = self._resolved_target("mypkg/core/__init__.py")
+        self.assertIsNotNone(hit, "mypkg.core should resolve; got: " + str(self.edges))
+
+    def test_resolved_targets_are_node_keys(self) -> None:
+        for e in self.edges:
+            if e.get("resolved"):
+                self.assertIn(e["target"], self.node_keys)
+
+    def test_no_module_not_found_for_intra_package(self) -> None:
+        mno = [
+            e for e in self.edges
+            if not e.get("resolved") and e.get("resolution_error") == "module_not_found"
+        ]
+        self.assertEqual(mno, [], "unexpected module_not_found edges: " + str(mno))
+
+
+class TestDifferingNameNoRegression(unittest.TestCase):
+    """No regression: src/pkg layout (root name != package name) still resolves."""
+
+    FIXTURE = Path(__file__).resolve().parent / "fixtures" / "py-project"
+    SOURCE_ROOTS = ("src",)
+    EXTERNAL = ("requests",)
+
+    def test_pkg_sub_still_resolves(self) -> None:
+        node_keys = discover_py_files(self.FIXTURE, self.SOURCE_ROOTS)
+        index = ModuleIndex(node_keys, self.SOURCE_ROOTS)
+        # pkg.helpers (absolute, root="src") must still resolve via root-stripped form.
+        hit = index.resolve_absolute("pkg.helpers")
+        self.assertIsNotNone(hit)
+        self.assertIn(hit, set(node_keys))
+
+    def test_src_prefixed_form_also_resolves(self) -> None:
+        # Option A also registers "src.pkg.helpers"; verify it hits the same key.
+        node_keys = discover_py_files(self.FIXTURE, self.SOURCE_ROOTS)
+        index = ModuleIndex(node_keys, self.SOURCE_ROOTS)
+        bare = index.resolve_absolute("pkg.helpers")
+        qualified = index.resolve_absolute("src.pkg.helpers")
+        # The qualified form is an harmless extra entry — both point to the same key.
+        self.assertEqual(bare, qualified)
+
+
 if __name__ == "__main__":
     unittest.main()

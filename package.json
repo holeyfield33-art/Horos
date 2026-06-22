@@ -2,6 +2,22 @@
   "name": "@horos/router",
   "version": "0.1.0",
   "description": "Horos — deterministic context router with signed, replayable provenance receipts.",
+  "keywords": [
+    "llm",
+    "context",
+    "router",
+    "provenance",
+    "receipt",
+    "ed25519",
+    "deterministic",
+    "agent",
+    "dependency-graph"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/holeyfield33-art/horos"
+  },
+  "homepage": "https://github.com/holeyfield33-art/horos#readme",
   "type": "module",
   "license": "MIT",
   "bin": {

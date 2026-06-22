@@ -9,6 +9,6 @@ See ``SPEC-python-generator-v0.md`` and ``DECISIONS-py.md`` at the repo root.
 """
 
 GENERATOR_NAME = "@horos/graph-gen-python"
-GENERATOR_VERSION = "0.3.0"
+GENERATOR_VERSION = "0.3.1"
 
 __all__ = ["GENERATOR_NAME", "GENERATOR_VERSION"]
