@@ -15,9 +15,13 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/holeyfield33-art/horos"
+    "url": "https://github.com/holeyfield33-art/Horos"
   },
-  "homepage": "https://github.com/holeyfield33-art/horos#readme",
+  "homepage": "https://github.com/holeyfield33-art/Horos#readme",
+  "bugs": {
+    "url": "https://github.com/holeyfield33-art/Horos/issues"
+  },
+  "author": "Ashura Joseph Holeyfield",
   "type": "module",
   "license": "MIT",
   "bin": {
