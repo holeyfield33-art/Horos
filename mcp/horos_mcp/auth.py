@@ -32,6 +32,9 @@ class BearerAuthMiddleware:
         self._app = app
         # Compare against the full header value so scheme and token are checked together.
         self._expected = b"Bearer " + secret.encode("utf-8")
+        # Also accept the raw token via ?token= query param, because some MCP
+        # connector UIs cannot send a custom Authorization header.
+        self._expected_token = secret.encode("utf-8")
         self._health_path = health_path
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -56,11 +59,27 @@ class BearerAuthMiddleware:
             if name == b"authorization":
                 presented = value
                 break
-        if presented is None:
-            # Still spend a comparison to avoid a trivial timing oracle on presence.
-            hmac.compare_digest(self._expected, self._expected)
-            return False
-        return hmac.compare_digest(presented, self._expected)
+        if presented is not None and hmac.compare_digest(presented, self._expected):
+            return True
+        # Fallback: token in the query string (?token=SECRET) for connector UIs that
+        # cannot set an Authorization header.
+        token = self._query_token(scope)
+        if token is not None and hmac.compare_digest(token, self._expected_token):
+            return True
+        hmac.compare_digest(self._expected_token, self._expected_token)
+        return False
+
+    @staticmethod
+    def _query_token(scope: Scope) -> bytes | None:
+        raw = scope.get("query_string", b"")
+        if not raw:
+            return None
+        from urllib.parse import parse_qs
+        qs = parse_qs(raw.decode("latin-1"))
+        vals = qs.get("token")
+        if not vals:
+            return None
+        return vals[0].encode("utf-8")
 
     async def _healthz(self, send: Send) -> None:
         body = b'{"status":"ok"}'
