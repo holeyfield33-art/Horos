@@ -38,3 +38,33 @@ jobs:
         with:
           python-version: "3.11"
       - run: cd python/graph-gen-python && python3 -m unittest discover -s tests
+
+  mcp:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (v20)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Compile TS Router (Required for MCP Execution)
+        run: |
+          npm ci
+          npm run build
+
+      - name: Setup Python (3.11)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python Dev Dependencies
+        run: |
+          pip install -r mcp/requirements-dev.txt
+
+      - name: Run MCP Server Test Suite
+        run: |
+          cd mcp
+          python -m pytest -q
