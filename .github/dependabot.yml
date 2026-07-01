@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # 1. Track Node/npm dependencies in the root folder
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # 2. Track Python dependencies for the graph generator
+  - package-ecosystem: "pip"
+    directory: "/python/graph-gen-python"
+    schedule:
+      interval: "weekly"
+
+  # 3. Track Python dependencies for the MCP server
+  - package-ecosystem: "pip"
+    directory: "/mcp"
+    schedule:
+      interval: "weekly"
