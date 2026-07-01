@@ -8,7 +8,7 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 
 import { sha256 } from "../canonical/index.js";
 import { ContentDriftError } from "../errors.js";
@@ -27,8 +27,12 @@ export function verifySelectionContent(
   selection: readonly VerifiableFile[],
   repoRoot: string,
 ): void {
+  const resolvedRoot = resolve(repoRoot);
   for (const file of selection) {
     const full = join(repoRoot, file.path);
+    if (!resolve(full).startsWith(resolvedRoot + sep)) {
+      throw new ContentDriftError(file.path);
+    }
     if (!existsSync(full)) {
       throw new ContentDriftError(file.path);
     }

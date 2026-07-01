@@ -7,6 +7,8 @@ import hashlib
 import unittest
 from pathlib import Path
 
+import pytest
+
 from graph_gen_python.files import (
     build_pyfile,
     collect_exports,
@@ -43,6 +45,20 @@ class TestFiles(unittest.TestCase):
         expected = hashlib.sha256((FIXTURES / "with_all.py").read_bytes()).hexdigest()
         self.assertEqual(pf.content_hash, expected)
         self.assertEqual(pf.exports, ("Public_B", "public_a"))
+
+
+def test_build_pyfile_rejects_symlink_escape(tmp_path: Path) -> None:
+    """A symlink inside the repo root pointing outside it must raise ValueError."""
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    # Place a "secret" file outside the repo root that a symlink could reach.
+    outside = tmp_path / "secret.py"
+    outside.write_text("SECRET = 1\n")
+    # Create the malicious symlink inside the repo.
+    link = repo_root / "escape_link.py"
+    link.symlink_to(outside)
+    with pytest.raises(ValueError, match="path escapes repo root"):
+        build_pyfile(repo_root, "escape_link.py")
 
 
 if __name__ == "__main__":

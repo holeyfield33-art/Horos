@@ -125,7 +125,7 @@ def _run_git(args: list[str], *, token: str | None, timeout: int) -> subprocess.
 
 def _clone_into(url: str, ref: str | None, dest: Path, *, token: str | None) -> None:
     """Shallow + blobless clone at ``ref``; SHA-not-at-tip falls back to fetch."""
-    base = ["clone", "--depth", "1", "--filter=blob:none", "--no-recurse-submodules"]
+    base = ["clone", "-c", "core.symlinks=false", "--depth", "1", "--filter=blob:none", "--no-recurse-submodules"]
     if ref is None:
         _run_git([*base, url, str(dest)], token=token, timeout=_CLONE_TIMEOUT_S)
         return
