@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -43,6 +44,19 @@ class TestFiles(unittest.TestCase):
         expected = hashlib.sha256((FIXTURES / "with_all.py").read_bytes()).hexdigest()
         self.assertEqual(pf.content_hash, expected)
         self.assertEqual(pf.exports, ("Public_B", "public_a"))
+
+    def test_build_pyfile_rejects_symlink_escape(self) -> None:
+        """A symlink inside the repo root pointing outside it must raise ValueError."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            repo_root = tmp_path / "repo"
+            repo_root.mkdir()
+            outside = tmp_path / "secret.py"
+            outside.write_text("SECRET = 1\n")
+            link = repo_root / "escape_link.py"
+            link.symlink_to(outside)
+            with self.assertRaisesRegex(ValueError, "path escapes repo root"):
+                build_pyfile(repo_root, "escape_link.py")
 
 
 if __name__ == "__main__":

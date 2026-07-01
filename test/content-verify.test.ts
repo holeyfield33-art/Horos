@@ -50,4 +50,14 @@ describe("content re-verification (§6.4)", () => {
       verifySelectionContent([{ path: "gone.ts", content_hash: "00" }], dir("./fixtures/content/repo")),
     ).toThrow(/content drift gone\.ts/);
   });
+
+  it("throws ContentDriftError when path escapes repoRoot via traversal", () => {
+    const repoRoot = dir("./fixtures/content/repo");
+    expect(() =>
+      verifySelectionContent(
+        [{ path: "../../../etc/passwd", content_hash: "00" }],
+        repoRoot,
+      ),
+    ).toThrow(ContentDriftError);
+  });
 });

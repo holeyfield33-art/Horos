@@ -152,6 +152,9 @@ def _static_dunder_all(tree: ast.Module) -> list[str] | None:
 
 def build_pyfile(repo_root: Path, rel_path: str) -> PyFile:
     abs_path = repo_root / rel_path
+    resolved = abs_path.resolve()
+    if not resolved.is_relative_to(repo_root.resolve()):
+        raise ValueError(f"path escapes repo root: {rel_path}")
     raw_bytes = abs_path.read_bytes()
     content_hash = sha256_hex(raw_bytes)
     source = raw_bytes.decode("utf-8")
