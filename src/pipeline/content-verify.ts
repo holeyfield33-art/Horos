@@ -7,7 +7,7 @@
  * longer matches the graph.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 
 import { sha256 } from "../canonical/index.js";
@@ -28,12 +28,16 @@ export function verifySelectionContent(
   repoRoot: string,
 ): void {
   const resolvedRoot = resolve(repoRoot);
+  const realRoot = existsSync(resolvedRoot) ? realpathSync(resolvedRoot) : resolvedRoot;
+  const rootPrefix = realRoot.endsWith(sep) ? realRoot : realRoot + sep;
+
   for (const file of selection) {
     const full = join(repoRoot, file.path);
-    if (!resolve(full).startsWith(resolvedRoot + sep)) {
+    if (!existsSync(full)) {
       throw new ContentDriftError(file.path);
     }
-    if (!existsSync(full)) {
+    const realFull = realpathSync(full);
+    if (realFull !== realRoot && !realFull.startsWith(rootPrefix)) {
       throw new ContentDriftError(file.path);
     }
     const actual = sha256(readFileSync(full));
