@@ -37,7 +37,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "typescript": "^5.8.2"
+    "typescript": "^6.0.3"
   },
   "devDependencies": {
     "@types/node": "^22.20.0",
