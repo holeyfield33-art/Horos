@@ -1,5 +1,8 @@
 # Horos
 
+[![CI](https://github.com/holeyfield33-art/Horos/actions/workflows/ci.yml/badge.svg)](https://github.com/holeyfield33-art/Horos/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 **Deterministic context router with a signed, replayable receipt.**
 
 Horos selects which repository files a language model needs for a task, and emits
@@ -119,7 +122,7 @@ The generator prints a **completion report** to stderr. If any imports were
 `module_not_found`, it lists the distinct top-level names so you can add them to
 `external_modules` and re-run:
 
-```
+```text
 Unresolved top-level modules (candidates for external_modules):
   celery
   stripe
@@ -204,7 +207,7 @@ node dist/cli/horos.js verify receipt.json \
 Key fields at a glance:
 
 | Field | What it attests |
-|---|---|
+| --- | --- |
 | `receipt_hash` | SHA-256 of the canonical payload (everything except itself and `signature`). Identical on replay. |
 | `selection[].rule_evidence` | Why each file was included: which entrypoint rule fired, which graph edge was followed. |
 | `exclusions[].reason_code` | Why a candidate was excluded: `HEURISTIC_IGNORE_TESTS`, `BUDGET_TRUNCATED`, etc. |
@@ -233,7 +236,7 @@ does not know.
 **v0.3.2 — early, usable for TS/JS + Python.**
 
 | Component | Status |
-|---|---|
+| --- | --- |
 | Canonical forms + frozen vectors | Stable |
 | Graph artifact schema (TS + Python) | Stable |
 | Selection pipeline | Stable |
