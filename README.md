@@ -233,7 +233,7 @@ does not know.
 
 ## Status
 
-**v0.3.2 — early, usable for TS/JS + Python.**
+**v0.3.3 — early, usable for TS/JS + Python.**
 
 | Component | Status |
 | --- | --- |
@@ -244,11 +244,18 @@ does not know.
 | `horos verify` CLI | Stable |
 | TypeScript/JavaScript generator | Stable |
 | Python generator | Stable (v0.3.1 — same-named-package layouts supported) |
-| MCP server (`mcp/`) | Implemented, not yet publicly hosted |
+| MCP server (`mcp/`) | Implemented, and publicly hosted |
 | Other language generators | Not yet started |
 
 Validated on this repo's own source and against real external repositories.
 Not yet benchmarked or tuned for very large monorepos (>10k files).
+
+---
+
+### Hosted MCP Server
+The Horos MCP server is hosted live for public testing.
+* **Endpoint:** `https://horos.onrender.com/mcp`
+* **Authentication:** Token-based. Currently, access is restricted to ensure fair resource use. To request an access token, please open a GitHub Issue with the label `question`.
 
 ---
 
