@@ -1,6 +1,12 @@
 {
   "name": "@horos/router",
-  "version": "0.1.0",
+  "version": "0.3.3",
+  "files": [
+  "dist",
+  "scripts",
+  "README.md",
+  "LICENSE"
+],
   "description": "Horos — deterministic context router with signed, replayable provenance receipts.",
   "keywords": [
     "llm",
@@ -31,6 +37,7 @@
     "node": ">=20"
   },
   "scripts": {
+    "prepublishOnly": "npm run typecheck && npm test && npm run build",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
