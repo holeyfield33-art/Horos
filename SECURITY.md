@@ -1,29 +1,12 @@
 # Security Policy
 
-## Supported versions
+## Reporting a Vulnerability
+If you discover a security vulnerability in Horos, please do **not** open a public issue. Instead, email us directly at info@aletheia-core.com. We aim to acknowledge all reports within 72 hours.
 
-| Version | Supported |
-| --- | --- |
-| latest (`main`) | ✅ |
-| older tags | ❌ — please upgrade |
+## Supported Versions
+We actively support and patch the latest release (currently `v0.3.3`).
 
-## Reporting a vulnerability
-
-**Do not open a public GitHub issue for security vulnerabilities.**
-
-Use GitHub's built-in private disclosure flow:
-[Report a vulnerability](https://github.com/holeyfield33-art/Horos/security/advisories/new)
-
-Please include:
-
-- A clear description of the vulnerability and its impact.
-- Steps to reproduce or a minimal proof-of-concept.
-- The version or commit SHA you tested against.
-
-You can expect an acknowledgement within **72 hours** and a resolution timeline within **14 days** for confirmed issues. If a CVE is warranted, one will be requested during the advisory process.
-
-## Scope
-
-This policy covers the Horos TypeScript router, Python generator, and MCP server
-source code in this repository. It does not cover third-party dependencies —
-please report those upstream.
+## Security Considerations & Trade-offs
+* **Token-in-URL Authentication:** To maintain compatibility with some connectors, Horos allows authenticating via a query parameter (e.g., `?token=SECRET`). Please be aware that this can cause secrets to land in web proxy logs, browser histories, or hosting logs.
+* **Recommendation:** We strongly recommend using **HTTP Header Authentication** (e.g., `Authorization: Bearer <your_token>`) as your primary and safest method. 
+* **Secret Rotation:** We recommend rotating your connection secrets and server secrets on a strict monthly cadence.
