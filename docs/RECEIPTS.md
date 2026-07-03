@@ -59,6 +59,12 @@ case-insensitive and whitespace-insensitive.
     "weight_policy_hash": "6266e0181962579284153459221de7a8dd6f7df68fccbd73d8e2b227b6df3be5"
   },
 ```
+`version` is the **selection-semantics version** (currently `"0.1.0"`),
+independent of the npm package version. It bumps only when a change would alter
+which files are selected, their ranks, or any exclusion reason — i.e. only when
+receipt replay would produce a different outcome. See `DECISIONS.md` §
+*selector.version versioning* for the full policy.
+
 `config_hash` = `SHA-256(cjson(SelectorConfig))` — pins the full entrypoint
 scoring rules, BFS depth, budget limits, and stopword set. `weight_policy_hash`
 pins the edge-type weights. If either changes (a new selector version), the hashes

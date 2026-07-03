@@ -17,3 +17,9 @@ updates:
     directory: "/mcp"
     schedule:
       interval: "weekly"
+
+  # 4. Keep GitHub Actions SHA-pinned and up-to-date
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
