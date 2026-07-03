@@ -1,24 +1,45 @@
 /**
- * `horos` CLI — SPEC §5.3 verify command.
+ * `horos` CLI — context-graph generation, routing, and receipt verification.
+ *
+ *   horos generate --tsconfig <path> [--repo <dir>] [--origin <url>]
+ *       [--commit <sha>] [--out <file>] [--json]
+ *
+ *   horos route <graph.json> <task text> [--key <hex-seed>] [--out <file>]
+ *       [--config <config.json>] [--manual a.ts,b.ts] [--json]
  *
  *   horos verify <receipt.json> --graph <graph.json> --task <text>
  *       [--task-file <file>] [--config <config.json>]
  *       [--manual a.ts,b.ts] [--repo <dir>]
  *
- * Re-runs selection from the supplied inputs, asserts the receipt replays
- * identically, and verifies the signature. Prints PASS / FAIL with the exact
- * diverging field. Exit code 0 on PASS, 1 on FAIL, 2 on usage error.
+ * Exit codes: 0 success, 1 operation failure (FAIL / generation error), 2 usage error.
  */
 
-import { readFileSync } from "node:fs";
+import { execSync } from "node:child_process";
+import { readFileSync, writeFileSync } from "node:fs";
+import type { KeyObject } from "node:crypto";
+import { dirname, resolve } from "node:path";
 
+import {
+  generateEd25519KeyPair,
+  ed25519PrivateKeyFromSeed,
+  ed25519PublicKeyFromPrivate,
+  ed25519PublicKeyToHex,
+} from "../canonical/index.js";
 import { loadSelectorConfig, loadSelectorConfigFile, type SelectorConfig } from "../config/index.js";
+import { generateGraph } from "../generator/index.js";
+import { loadGraphArtifact } from "../graph/index.js";
+import { selectContext } from "../pipeline/index.js";
+import { buildReceipt } from "../receipt/index.js";
 import type { Receipt } from "../receipt/index.js";
 import { verifyReceipt, type ReplayInputs } from "../verify/index.js";
 
 export type CliResult = { readonly code: number; readonly lines: readonly string[] };
 
-type Flags = { readonly positional: string[]; readonly options: Map<string, string> };
+type Flags = {
+  readonly positional: string[];
+  readonly options: Map<string, string>;
+  readonly booleans: Set<string>;
+};
 
 const VALUE_FLAGS = new Set([
   "--graph",
@@ -27,11 +48,19 @@ const VALUE_FLAGS = new Set([
   "--config",
   "--manual",
   "--repo",
+  "--tsconfig",
+  "--origin",
+  "--commit",
+  "--out",
+  "--key",
 ]);
+
+const BOOLEAN_FLAGS = new Set(["--json"]);
 
 function parseFlags(argv: readonly string[]): Flags {
   const positional: string[] = [];
   const options = new Map<string, string>();
+  const booleans = new Set<string>();
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i] as string;
     if (VALUE_FLAGS.has(arg)) {
@@ -39,13 +68,15 @@ function parseFlags(argv: readonly string[]): Flags {
       if (value === undefined) throw new Error(`missing value for ${arg}`);
       options.set(arg, value);
       i += 1;
+    } else if (BOOLEAN_FLAGS.has(arg)) {
+      booleans.add(arg);
     } else if (arg.startsWith("--")) {
       throw new Error(`unknown option ${arg}`);
     } else {
       positional.push(arg);
     }
   }
-  return { positional, options };
+  return { positional, options, booleans };
 }
 
 function readJson(path: string): unknown {
@@ -82,7 +113,164 @@ function resolveManual(options: Map<string, string>): string[] {
   return raw.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
 }
 
-const USAGE =
+function writeOutput(path: string | undefined, content: string): CliResult {
+  if (path !== undefined) {
+    writeFileSync(path, content, "utf8");
+    return { code: 0, lines: [] };
+  }
+  return { code: 0, lines: [content] };
+}
+
+// ---------------------------------------------------------------------------
+// generate
+// ---------------------------------------------------------------------------
+
+const GENERATE_USAGE =
+  "usage: horos generate --tsconfig <path> [--repo <dir>] [--origin <url>] " +
+  "[--commit <sha>] [--out <file>] [--json]";
+
+function runGenerateCommand(argv: readonly string[]): CliResult {
+  let flags: Flags;
+  try {
+    flags = parseFlags(argv);
+  } catch (error) {
+    return { code: 2, lines: [`error: ${(error as Error).message}`, GENERATE_USAGE] };
+  }
+
+  const tsconfigArg = flags.options.get("--tsconfig");
+  if (tsconfigArg === undefined) {
+    return { code: 2, lines: ["error: --tsconfig is required", GENERATE_USAGE] };
+  }
+
+  const resolvedTsconfig = resolve(tsconfigArg);
+  const projectRoot = resolve(flags.options.get("--repo") ?? dirname(resolvedTsconfig));
+  const origin = flags.options.get("--origin") ?? `local:${projectRoot}`;
+  const outPath = flags.options.get("--out");
+  const useJson = flags.booleans.has("--json");
+
+  let commitSha = flags.options.get("--commit");
+  if (commitSha === undefined) {
+    try {
+      commitSha = execSync("git rev-parse HEAD", { cwd: projectRoot, encoding: "utf8" }).trim();
+    } catch {
+      commitSha = "0000000000000000000000000000000000000000";
+    }
+  }
+
+  let artifact: unknown;
+  try {
+    ({ artifact } = generateGraph({
+      projectRoot,
+      tsconfigPath: resolvedTsconfig,
+      repositoryOrigin: origin,
+      commitSha,
+    }));
+  } catch (error) {
+    return { code: 1, lines: [`error: ${(error as Error).message}`] };
+  }
+
+  const json = useJson
+    ? JSON.stringify({ ok: true, graph: artifact }, null, 2)
+    : JSON.stringify(artifact, null, 2);
+
+  return writeOutput(outPath, json);
+}
+
+// ---------------------------------------------------------------------------
+// route
+// ---------------------------------------------------------------------------
+
+const ROUTE_USAGE =
+  "usage: horos route <graph.json> <task text...> [--key <hex-seed>] [--out <file>] " +
+  "[--config <config.json>] [--manual a,b] [--json]";
+
+function runRouteCommand(argv: readonly string[]): CliResult {
+  let flags: Flags;
+  try {
+    flags = parseFlags(argv);
+  } catch (error) {
+    return { code: 2, lines: [`error: ${(error as Error).message}`, ROUTE_USAGE] };
+  }
+
+  const graphPath = flags.positional[0];
+  const taskText = flags.positional.slice(1).join(" ");
+  if (graphPath === undefined || taskText === "") {
+    return { code: 2, lines: ["error: graph path and task text are required", ROUTE_USAGE] };
+  }
+
+  const outPath = flags.options.get("--out");
+  const useJson = flags.booleans.has("--json");
+
+  let rawGraph: unknown;
+  let config: SelectorConfig;
+  try {
+    rawGraph = readJson(graphPath);
+    config = resolveConfig(flags.options);
+  } catch (error) {
+    return { code: 2, lines: [`error: ${(error as Error).message}`] };
+  }
+
+  let artifact: ReturnType<typeof loadGraphArtifact>["artifact"];
+  let graphArtifactHash: string;
+  try {
+    ({ artifact, graphArtifactHash } = loadGraphArtifact(rawGraph));
+  } catch (error) {
+    return { code: 1, lines: [`error: ${(error as Error).message}`] };
+  }
+
+  const selectionResult = selectContext({ graph: artifact, task: taskText, config });
+
+  let privateKey: KeyObject;
+  const keySeed = flags.options.get("--key");
+  if (keySeed !== undefined) {
+    try {
+      privateKey = ed25519PrivateKeyFromSeed(keySeed);
+    } catch (error) {
+      return { code: 2, lines: [`error: invalid --key: ${(error as Error).message}`] };
+    }
+  } else {
+    ({ privateKey } = generateEd25519KeyPair());
+    const pubHex = ed25519PublicKeyToHex(ed25519PublicKeyFromPrivate(privateKey));
+    process.stderr.write(`public_key: ${pubHex}\n`);
+  }
+
+  let receipt: Receipt;
+  try {
+    receipt = buildReceipt({
+      selectionResult,
+      repository: {
+        origin: artifact.metadata.provenance.repository_origin,
+        commit_sha: artifact.metadata.provenance.commit_sha,
+        tree_hash: artifact.metadata.provenance.tree_hash,
+      },
+      taskText,
+      taskClass: "feature",
+      config,
+      graphArtifactHash,
+      graphGenerator: {
+        name: artifact.metadata.generator.name,
+        version: artifact.metadata.generator.version,
+      },
+      manualInclude: resolveManual(flags.options),
+      prevReceiptHash: null,
+      privateKey,
+    });
+  } catch (error) {
+    return { code: 1, lines: [`error: ${(error as Error).message}`] };
+  }
+
+  const json = useJson
+    ? JSON.stringify({ ok: true, receipt }, null, 2)
+    : JSON.stringify(receipt, null, 2);
+
+  return writeOutput(outPath, json);
+}
+
+// ---------------------------------------------------------------------------
+// verify
+// ---------------------------------------------------------------------------
+
+const VERIFY_USAGE =
   "usage: horos verify <receipt.json> --graph <graph.json> (--task <text> | --task-file <path>) " +
   "[--config <config.json>] [--manual a,b] [--repo <dir>]";
 
@@ -91,13 +279,13 @@ function runVerifyCommand(argv: readonly string[]): CliResult {
   try {
     flags = parseFlags(argv);
   } catch (error) {
-    return { code: 2, lines: [`error: ${(error as Error).message}`, USAGE] };
+    return { code: 2, lines: [`error: ${(error as Error).message}`, VERIFY_USAGE] };
   }
 
   const receiptPath = flags.positional[0];
   const graphPath = flags.options.get("--graph");
   if (receiptPath === undefined || graphPath === undefined) {
-    return { code: 2, lines: ["error: receipt path and --graph are required", USAGE] };
+    return { code: 2, lines: ["error: receipt path and --graph are required", VERIFY_USAGE] };
   }
 
   let receipt: Receipt;
@@ -123,9 +311,25 @@ function runVerifyCommand(argv: readonly string[]): CliResult {
   return { code: 1, lines: [`FAIL ${outcome.field}: ${outcome.detail}`] };
 }
 
+// ---------------------------------------------------------------------------
+// dispatch
+// ---------------------------------------------------------------------------
+
+const USAGE =
+  "usage: horos <command> [...args]\n" +
+  "  horos generate --tsconfig <path> [--repo <dir>] [--origin <url>] [--commit <sha>] [--out <file>] [--json]\n" +
+  "  horos route <graph.json> <task text...> [--key <hex-seed>] [--out <file>] [--config <config.json>] [--manual a,b] [--json]\n" +
+  "  horos verify <receipt.json> --graph <graph.json> (--task <text> | --task-file <path>) [--config <config.json>] [--manual a,b] [--repo <dir>]";
+
 /** Run the CLI with already-sliced args (no node/script entries). */
 export function run(argv: readonly string[]): CliResult {
   const command = argv[0];
+  if (command === "generate") {
+    return runGenerateCommand(argv.slice(1));
+  }
+  if (command === "route") {
+    return runRouteCommand(argv.slice(1));
+  }
   if (command === "verify") {
     return runVerifyCommand(argv.slice(1));
   }
@@ -143,7 +347,10 @@ function isMain(): boolean {
 
 if (isMain()) {
   const result = run(process.argv.slice(2));
-  const stream = result.code === 0 ? process.stdout : process.stderr;
-  stream.write(result.lines.join("\n") + "\n");
+  if (result.lines.length > 0) {
+    const stream = result.code === 0 ? process.stdout : process.stderr;
+    stream.write(result.lines.join("\n") + "\n");
+  }
   process.exit(result.code);
 }
+

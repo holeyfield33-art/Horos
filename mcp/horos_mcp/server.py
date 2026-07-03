@@ -22,6 +22,7 @@ from starlette.types import ASGIApp
 
 from .auth import BearerAuthMiddleware
 from .router import RouteError, route_context as _route_context
+from .verifier import verify_receipt as _verify_receipt
 from .workspace import CloneError
 
 SERVER_NAME = "Horos"
@@ -47,6 +48,26 @@ def register_tools(mcp: FastMCP) -> None:
             return _route_context(repo, task, ref, config, manual_include)
         except (CloneError, RouteError) as exc:
             # Clean, secret-free tool error (codes per SPEC §5/§6).
+            raise ToolError(f"{exc.code}: {exc.detail}") from None
+
+    @mcp.tool()
+    def verify_receipt(
+        receipt: dict,
+        graph: dict,
+        task: str,
+        manual_include: list[str] | None = None,
+    ) -> dict:
+        """Verify a Horos receipt against its graph artifact and task text.
+
+        Accepts inline JSON objects — no repository clone required.  Returns
+        ``{"pass": true}`` on success or ``{"pass": false, "field": "...",
+        "detail": "..."}`` identifying the exact diverging field.  This is the
+        tool third-party auditors use to confirm that a receipt is authentic
+        without needing access to the original repository.
+        """
+        try:
+            return _verify_receipt(receipt, graph, task, manual_include)
+        except RouteError as exc:
             raise ToolError(f"{exc.code}: {exc.detail}") from None
 
 

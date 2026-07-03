@@ -100,3 +100,28 @@ for review** — these are reasonable v1 heuristics, not spec-mandated exact rul
   `raw_specifier` (falling back to `resolution_error`) for unresolved edges whose
   source was visited. `entrypoints` lists all discovered entrypoints (including
   any later heuristically excluded). `rank` is 1-based.
+
+## selector.version versioning
+
+`receipt.selector.version` (currently `"0.1.0"`) tracks **selection-algorithm
+semantics**, not the npm package version. The two are intentionally decoupled:
+
+- A bump to the Horos package that changes documentation, CLI output, or adds
+  new APIs without altering which files are selected for a given task+graph must
+  **not** bump `selector.version`. Doing so would invalidate every existing
+  receipt for no technical reason — receipt replay would fail the
+  `selector.version` assertion even though the selection outcome is identical.
+- `selector.version` bumps **only** when a change would alter the set of files
+  selected, their ranks, their exclusion reasons, or any other field that is
+  hashed into `receipt_hash`. In practice this means changes to:
+  - entrypoint scoring rules (`entrypoint_rules_version`),
+  - BFS propagation logic,
+  - budget / depth limits in `DEFAULT_SELECTOR_CONFIG`, or
+  - task-normalization semantics.
+- A `selector.version` bump is a **breaking change to replay** and must be
+  accompanied by a minor or major npm version bump and a CHANGELOG compatibility
+  note. Aligning `selector.version` with the package version (e.g. bumping both
+  to `0.4.0`) is acceptable if the release also contains a selection change;
+  bumping `selector.version` purely for cosmetic alignment is not.
+
+The constant lives in `src/config/selector-config.ts` (`SELECTOR_VERSION`).

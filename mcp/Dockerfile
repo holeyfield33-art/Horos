@@ -43,12 +43,17 @@ COPY mcp /app/mcp
 ENV PYTHONPATH=/app/mcp \
     PYTHONUNBUFFERED=1
 
-# Build-time smoke test (M3 acceptance): both runtimes work and the tool is listed.
+# Build-time smoke test (M3 acceptance): both runtimes work and all tools are listed.
 RUN node --version \
     && PYTHONPATH=/app/python/graph-gen-python python -m graph_gen_python --help >/dev/null \
     && node --input-type=module -e "await import('/app/dist/verify/index.js'); console.log('dist ok')" \
+    && node --input-type=module -e "await import('/app/mcp/generate_runner.mjs'); console.log('generate_runner ok')" \
+    && node --input-type=module -e "await import('/app/mcp/verify_runner.mjs'); console.log('verify_runner ok')" \
     && python -c "import asyncio; from horos_mcp.server import build_mcp; \
-assert 'route_context' in [t.name for t in asyncio.run(build_mcp().list_tools())]; print('server ok')"
+tools = [t.name for t in asyncio.run(build_mcp().list_tools())]; \
+assert 'route_context' in tools, f'route_context missing: {tools}'; \
+assert 'verify_receipt' in tools, f'verify_receipt missing: {tools}'; \
+print('server ok')"
 
 # Render injects $PORT; default for local runs. HOROS_SERVER_SECRET / GITHUB_TOKEN are
 # provided as secrets at deploy time (never baked into the image).

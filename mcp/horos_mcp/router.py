@@ -31,6 +31,9 @@ _GENERATOR_PATH = os.environ.get(
 _ROUTER_RUNNER = os.environ.get(
     "HOROS_ROUTER_RUNNER", str(_REPO_ROOT / "mcp" / "router_runner.mjs")
 )
+_GENERATOR_RUNNER = os.environ.get(
+    "HOROS_GENERATOR_RUNNER", str(_REPO_ROOT / "mcp" / "generate_runner.mjs")
+)
 
 _GEN_TIMEOUT_S = int(os.environ.get("HOROS_GEN_TIMEOUT_S", "120"))
 _ROUTER_TIMEOUT_S = int(os.environ.get("HOROS_ROUTER_TIMEOUT_S", "120"))
@@ -55,6 +58,36 @@ def _scrub(text: str) -> str:
     return text.replace(token, "***") if token else text
 
 
+def _detect_language(workspace: Path) -> str:
+    """Return ``"typescript"`` or ``"python"`` based on marker files.
+
+    ``horos.json`` is an explicit Python-pipeline signal and wins over
+    ``tsconfig.json`` so mixed repos (TS project that also ships a horos.json)
+    keep their explicit configuration.
+    """
+    if (workspace / "horos.json").exists():
+        return "python"
+    if (workspace / "tsconfig.json").exists():
+        return "typescript"
+    return "python"  # will trigger config synthesis
+
+
+def _synthesize_python_config(workspace: Path) -> Path:
+    """Write a minimal horos.json into the workspace and return its path.
+
+    Probes for common Python source-root directories; falls back to the repo
+    root (``""``).  Writing directly to the workspace is safe because the
+    workspace lives in an ephemeral temp directory from clone_repo.
+    """
+    candidates = ["src", "lib", "app"]
+    source_roots = [d for d in candidates if (workspace / d).is_dir()] or [""]
+    config_path = workspace / "horos.json"
+    config_path.write_text(
+        json.dumps({"python_source_roots": source_roots}), encoding="utf-8"
+    )
+    return config_path
+
+
 def _resolve_config(workspace: Path, config: str) -> Path:
     """Resolve a repo-relative config path, refusing to escape the workspace."""
     candidate = (workspace / config).resolve()
@@ -70,6 +103,7 @@ def _resolve_config(workspace: Path, config: str) -> Path:
 def _generate_graph(
     workspace: Path, config_path: Path, out_path: Path, *, origin: str, sha: str, iso: str
 ) -> None:
+    """Run the Python generator subprocess."""
     env = dict(os.environ)
     existing = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = _GENERATOR_PATH + (os.pathsep + existing if existing else "")
@@ -100,6 +134,57 @@ def _generate_graph(
         stderr = _scrub(proc.stderr.decode("utf-8", "replace").strip())
         summary = stderr.splitlines()[-1] if stderr else f"exit {proc.returncode}"
         raise RouteError("graph_generation_failed", summary[:300])
+
+
+def _generate_graph_ts(
+    workspace: Path, tsconfig_path: Path, out_path: Path, *, origin: str, sha: str, iso: str
+) -> None:
+    """Run the TypeScript generator via the Node.js generate_runner.mjs."""
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as fh:
+        req_path = fh.name
+        json.dump(
+            {
+                "tsconfig": str(tsconfig_path),
+                "repo": str(workspace),
+                "origin": origin,
+                "commit": sha,
+                "generated_at": iso,
+                "out": str(out_path),
+            },
+            fh,
+        )
+    try:
+        env = dict(os.environ)
+        env["HOROS_DIST"] = _DIST
+        try:
+            proc = subprocess.run(
+                ["node", _GENERATOR_RUNNER, req_path],
+                check=False,
+                capture_output=True,
+                timeout=_GEN_TIMEOUT_S,
+                env=env,
+            )
+        except subprocess.TimeoutExpired:
+            raise RouteError("graph_generation_failed", f"generator exceeded {_GEN_TIMEOUT_S}s")
+        out = proc.stdout.decode("utf-8", "replace").strip()
+        try:
+            result = json.loads(out) if out else {}
+        except json.JSONDecodeError:
+            stderr = _scrub(proc.stderr.decode("utf-8", "replace").strip())
+            raise RouteError(
+                "graph_generation_failed",
+                (stderr.splitlines()[-1] if stderr else f"exit {proc.returncode}")[:300],
+            )
+        if not result.get("ok"):
+            raise RouteError(
+                "graph_generation_failed",
+                _scrub(str(result.get("error", "generator error")))[:300],
+            )
+    finally:
+        try:
+            os.unlink(req_path)
+        except OSError:
+            pass
 
 
 def _module_not_found(artifact: dict) -> list[str]:
@@ -198,18 +283,43 @@ def route_context(
     """
     manual_include = list(manual_include or [])
     with clone_repo(repo, ref) as ws:
-        config_path = _resolve_config(ws.workspace_path, config)
-        with tempfile.TemporaryDirectory(prefix="horos-graph-") as gtmp:
-            graph_path = Path(gtmp) / "graph.json"
-            _generate_graph(
-                ws.workspace_path,
-                config_path,
-                graph_path,
-                origin=ws.origin,
-                sha=ws.commit_sha,
-                iso=ws.commit_iso,
-            )
-            artifact = json.loads(graph_path.read_text(encoding="utf-8"))
-            mnf = _module_not_found(artifact)
-            router = _run_router(graph_path, task, manual_include)
-            return _shape_response(ws.commit_sha, router, mnf)
+        language = _detect_language(ws.workspace_path)
+        config_synthesized = False
+        if language == "typescript":
+            tsconfig_path = ws.workspace_path / "tsconfig.json"
+            with tempfile.TemporaryDirectory(prefix="horos-graph-") as gtmp:
+                graph_path = Path(gtmp) / "graph.json"
+                _generate_graph_ts(
+                    ws.workspace_path,
+                    tsconfig_path,
+                    graph_path,
+                    origin=ws.origin,
+                    sha=ws.commit_sha,
+                    iso=ws.commit_iso,
+                )
+                artifact = json.loads(graph_path.read_text(encoding="utf-8"))
+                mnf = _module_not_found(artifact)
+                router = _run_router(graph_path, task, manual_include)
+                return _shape_response(ws.commit_sha, router, mnf)
+        else:
+            if not (ws.workspace_path / "horos.json").exists():
+                _synthesize_python_config(ws.workspace_path)
+                config_synthesized = True
+            config_path = _resolve_config(ws.workspace_path, config)
+            with tempfile.TemporaryDirectory(prefix="horos-graph-") as gtmp:
+                graph_path = Path(gtmp) / "graph.json"
+                _generate_graph(
+                    ws.workspace_path,
+                    config_path,
+                    graph_path,
+                    origin=ws.origin,
+                    sha=ws.commit_sha,
+                    iso=ws.commit_iso,
+                )
+                artifact = json.loads(graph_path.read_text(encoding="utf-8"))
+                mnf = _module_not_found(artifact)
+                router = _run_router(graph_path, task, manual_include)
+                response = _shape_response(ws.commit_sha, router, mnf)
+                if config_synthesized:
+                    response["config_synthesized"] = True
+                return response
