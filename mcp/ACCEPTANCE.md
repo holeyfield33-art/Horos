@@ -94,17 +94,10 @@ async def main():
     assert partial["receipt"]["verified"] is True, partial
     print("OK partial, add to external_modules:", partial["suggested_external_modules"])
 
-    # 3d. verify_receipt against the TS result from 3a (round-trip audit).
-    receipt_obj = ts_result["receipt"]  # the summary; auditor would have the full receipt
-    # For a real round-trip, fetch or store the full receipt JSON from 3a, then:
-    # verify_result = await call_tool("verify_receipt", {
-    #     "receipt": <full_receipt_object>,
-    #     "graph":   <graph_artifact_object>,
-    #     "task":    "add verify_receipt tool",
-    # })
-    # assert verify_result["pass"] is True, verify_result
-    # print("OK verify_receipt PASS:", verify_result)
-    print("verify_receipt: call with the full receipt + graph objects from 3a")
+    # 3d. verify_receipt (auditor flow): call with a full receipt + graph artifact JSON
+    # that you already have (e.g., produced by the local CLI), since route_context
+    # returns only a receipt summary.
+    print("verify_receipt: call with full receipt + graph JSON objects (e.g., from local CLI)")
 
 
 asyncio.run(main())
