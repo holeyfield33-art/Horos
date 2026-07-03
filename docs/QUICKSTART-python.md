@@ -133,16 +133,13 @@ records what was missing, so the gap is auditable. Fix the graph by iterating on
 From the Horos repo root:
 
 ```sh
-node scripts/route.mjs graph.json "add user authentication" --out receipt.json
+node dist/cli/horos.js route graph.json "add user authentication" --out receipt.json
 ```
 
-Output to stderr:
+Output to stderr (only when `--key` is omitted — a random key is generated):
 
 ```
 public_key: 3ccd241c...
-receipt_hash: 9a3f1c...
-selected: 12 files
-receipt written to receipt.json
 ```
 
 To use a fixed signing key (recommended for reproducible receipts):
@@ -152,7 +149,7 @@ To use a fixed signing key (recommended for reproducible receipts):
 node -e "import {randomBytes} from 'node:crypto'; console.log(randomBytes(32).toString('hex'))"
 # → a3f9d2...  (save this as HOROS_SIGNING_KEY)
 
-node scripts/route.mjs graph.json "add user authentication" \
+node dist/cli/horos.js route graph.json "add user authentication" \
     --key "$HOROS_SIGNING_KEY" --out receipt.json
 ```
 
@@ -220,11 +217,9 @@ dependency; leave it if it's intentional (the graph records it as
 ```sh
 cd /path/to/horos
 
-node scripts/route.mjs /tmp/py-graph.json "helper relutil leaf" \
+node dist/cli/horos.js route /tmp/py-graph.json "helper relutil leaf" \
     --out /tmp/py-receipt.json
-# public_key: <hex>
-# receipt_hash: <hash>
-# selected: 3 files
+# (stderr: public_key: <hex>)
 
 node dist/cli/horos.js verify /tmp/py-receipt.json \
     --graph /tmp/py-graph.json --task "helper relutil leaf"

@@ -1,30 +1,56 @@
 # Horos MCP server
 
-A Render-hosted [MCP](https://modelcontextprotocol.io) server exposing one tool,
-`route_context`, that clones a committed repo, generates its dependency graph **in
-request** (the verified Python generator), routes the minimal context for a task through
-the **unchanged** TS router (`dist/`), and returns the selected files plus a signed,
-verified receipt.
+A Render-hosted [MCP](https://modelcontextprotocol.io) server exposing two tools:
 
-It wraps proven components and changes none of them. Source of truth:
+- **`route_context`** — clones a committed repo, auto-detects its language (TypeScript
+  or Python), generates its dependency graph **in request**, routes the minimal context
+  for a task through the **unchanged** TS router (`dist/`), and returns the selected
+  files plus a signed, verified receipt.
+- **`verify_receipt`** — verifies a receipt against its graph artifact and task text
+  without cloning any repository. Third-party auditors use this to confirm that a
+  receipt is authentic given only the receipt, the graph, and the task string.
+
+Both tools wrap proven components and change none of them. Source of truth:
 [`../SPEC-mcp-server-v0.md`](../SPEC-mcp-server-v0.md); design decisions in
 [`../DECISIONS-mcp.md`](../DECISIONS-mcp.md).
 
-## The tool
+## Tools
+
+### `route_context`
 
 `route_context(repo, task, ref=None, config="horos.json", manual_include=[])`
 
 - `repo` — `owner/repo` shorthand or an `https://github.com/...` URL (github.com only).
 - `task` — what the context is for (drives selection).
 - `ref` — branch, tag, or commit SHA. Default: the remote default branch HEAD.
-- `config` — repo-relative path to `horos.json`. Default: `horos.json`.
+- `config` — repo-relative path to `horos.json`. Default: `horos.json`. Used for Python
+  repos only; ignored when a `tsconfig.json` is detected.
 - `manual_include` — extra paths to record in the receipt.
+
+**Language detection** (in priority order):
+1. `horos.json` present → Python generator path (explicit signal).
+2. `horos.json` absent + `tsconfig.json` present → TypeScript generator path.
+3. Neither present → Python path with synthesised config (`config_synthesized: true`
+   in the response, probing `src/`, `lib/`, `app/` for source roots).
 
 Returns the selected files, exclusions, the receipt summary (hashes + `verified: true`),
 and — when an **unlisted** third-party import is found — `selection_status: "partial"`
 with an `unresolved_signal` and a `suggested_external_modules` list to add to `horos.json`
 and re-run. A partial result is never reported as complete, and a receipt that does not
 verify is an error, never a result.
+
+### `verify_receipt`
+
+`verify_receipt(receipt, graph, task, manual_include=[])`
+
+- `receipt` — the receipt JSON object to verify.
+- `graph` — the graph artifact JSON object the receipt was produced from.
+- `task` — the original task text.
+- `manual_include` — the manual-include list used when routing (default: empty).
+
+Returns `{"pass": true}` on success, or `{"pass": false, "field": "...", "detail": "..."}`
+identifying the exact diverging field on failure. No repository clone is needed — all
+verification inputs are supplied inline.
 
 ## Environment variables
 
@@ -65,8 +91,8 @@ docker build -f mcp/Dockerfile -t horos-mcp .
 docker run --rm -e HOROS_SERVER_SECRET=dev-secret -e PORT=8000 -p 8000:8000 horos-mcp
 ```
 
-The image runs a build-time smoke test that both runtimes work and `route_context` is
-listed.
+The image runs a build-time smoke test that both runtimes work and both tools
+(`route_context` and `verify_receipt`) are listed.
 
 ## Deploy to Render
 
@@ -81,7 +107,7 @@ Add a streamable-HTTP MCP connector pointing at:
 - **URL:** `https://<your-render-service>.onrender.com/mcp`
 - **Header:** `Authorization: Bearer <HOROS_SERVER_SECRET>`
 
-Then call `route_context` (see the live acceptance script in
+Then call `route_context` or `verify_receipt` (see the live acceptance script in
 [`ACCEPTANCE.md`](ACCEPTANCE.md)).
 
 ## Tests

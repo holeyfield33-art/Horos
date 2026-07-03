@@ -2,7 +2,7 @@
 
 > Status: **LOCKED** — multi-node relay consensus on architecture; graph-source decision
 > made by the operator (A for v1, C deferred).
-> A Render-hosted MCP server exposing `route_context`. Wraps the verified Python generator
+> A Render-hosted MCP server exposing `route_context` and `verify_receipt`. Wraps the verified Python generator
 > + the frozen TS router. Does NOT modify the router, receipt schema, or canonical layer.
 
 ---
@@ -10,7 +10,7 @@
 ## 1. What this is
 
 A real **MCP server** (official MCP Python SDK, `FastMCP`, **streamable-HTTP** transport)
-hosted on **Render**, exposing one tool, `route_context`, that:
+hosted on **Render**, exposing two tools — `route_context` and `verify_receipt` — where `route_context`:
 clones a committed repo at a ref → generates the dependency graph in-request (Python
 generator) → routes it through the unchanged TS router (`dist/`) → returns the selected
 files, exclusions, an honest unresolved signal, and the signed receipt.

@@ -44,11 +44,13 @@ ENV PYTHONPATH=/app/mcp \
     PYTHONUNBUFFERED=1
 
 # Build-time smoke test (M3 acceptance): both runtimes work and all tools are listed.
+# Runner scripts (generate_runner, verify_runner) are checked with --check (syntax only)
+# because they call process.exit(1) when invoked without args; import() would execute them.
 RUN node --version \
     && PYTHONPATH=/app/python/graph-gen-python python -m graph_gen_python --help >/dev/null \
     && node --input-type=module -e "await import('/app/dist/verify/index.js'); console.log('dist ok')" \
-    && node --input-type=module -e "await import('/app/mcp/generate_runner.mjs'); console.log('generate_runner ok')" \
-    && node --input-type=module -e "await import('/app/mcp/verify_runner.mjs'); console.log('verify_runner ok')" \
+    && node --check /app/mcp/generate_runner.mjs && echo 'generate_runner ok' \
+    && node --check /app/mcp/verify_runner.mjs && echo 'verify_runner ok' \
     && python -c "import asyncio; from horos_mcp.server import build_mcp; \
 tools = [t.name for t in asyncio.run(build_mcp().list_tools())]; \
 assert 'route_context' in tools, f'route_context missing: {tools}'; \

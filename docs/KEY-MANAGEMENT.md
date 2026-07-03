@@ -9,7 +9,7 @@ trust model actually is for v0.x.
 ## Generating a keypair
 
 The signing key is represented as a 32-byte seed (hex). Derive it once, store it
-securely, and pass it to `scripts/route.mjs` (or to `ed25519PrivateKeyFromSeed`
+securely, and pass it to `horos route` (or to `ed25519PrivateKeyFromSeed`
 in the library API) on each signing call.
 
 **Generate a seed with Node (the same crypto used internally):**
@@ -32,10 +32,10 @@ const publicKeyHex = ed25519PublicKeyToHex(ed25519PublicKeyFromPrivate(privateKe
 // publicKeyHex is what appears in every receipt's signature.public_key
 ```
 
-The `scripts/route.mjs` helper accepts the seed via `--key`:
+The `horos route` command accepts the seed via `--key`:
 
 ```sh
-node scripts/route.mjs graph.json "task text" --key "$HOROS_SIGNING_KEY" --out receipt.json
+node dist/cli/horos.js route graph.json "task text" --key "$HOROS_SIGNING_KEY" --out receipt.json
 ```
 
 ---
