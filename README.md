@@ -50,17 +50,14 @@ npm install && npm run build
 
 ```sh
 # 2. Generate a dependency graph from your TS/JS project
-node scripts/generate.mjs --tsconfig /path/to/your-project/tsconfig.json \
+node dist/cli/horos.js generate --tsconfig /path/to/your-project/tsconfig.json \
     --out graph.json
-# stderr: graph written to graph.json
 ```
 
 ```sh
 # 3. Route a task — select files and sign a receipt
-node scripts/route.mjs graph.json "fix the auth middleware" --out receipt.json
-# stderr: public_key: <hex>
-# stderr: receipt_hash: <hash>
-# stderr: selected: N files
+node dist/cli/horos.js route graph.json "fix the auth middleware" --out receipt.json
+# stderr (only if --key is omitted): public_key: <hex>
 ```
 
 ```sh
@@ -74,8 +71,8 @@ node dist/cli/horos.js verify receipt.json \
 **Try it against this repo:**
 
 ```sh
-node scripts/generate.mjs --tsconfig tsconfig.json --out graph.json
-node scripts/route.mjs graph.json "verify receipt signature" --out receipt.json
+node dist/cli/horos.js generate --tsconfig tsconfig.json --out graph.json
+node dist/cli/horos.js route graph.json "verify receipt signature" --out receipt.json
 node dist/cli/horos.js verify receipt.json \
     --graph graph.json --task "verify receipt signature"
 # PASS <receipt_hash>
@@ -134,7 +131,7 @@ graph_artifact_hash: 4a3f1...
 
 ```sh
 cd /path/to/horos
-node scripts/route.mjs graph.json "add user authentication" --out receipt.json
+node dist/cli/horos.js route graph.json "add user authentication" --out receipt.json
 node dist/cli/horos.js verify receipt.json \
     --graph graph.json --task "add user authentication"
 # PASS <receipt_hash>
@@ -233,7 +230,7 @@ does not know.
 
 ## Status
 
-**v0.3.3 — early, usable for TS/JS + Python.**
+**Unreleased (targeting v0.4.0) — early, usable for TS/JS + Python.**
 
 | Component | Status |
 | --- | --- |
@@ -242,9 +239,12 @@ does not know.
 | Selection pipeline | Stable |
 | Receipt + Ed25519 signing | Stable |
 | `horos verify` CLI | Stable |
+| `horos generate` CLI | Stable |
+| `horos route` CLI | Stable |
 | TypeScript/JavaScript generator | Stable |
 | Python generator | Stable (v0.3.1 — same-named-package layouts supported) |
-| MCP server (`mcp/`) | Implemented, and publicly hosted |
+| MCP server — `route_context` tool | Implemented, and publicly hosted |
+| MCP server — `verify_receipt` tool | Implemented (third-party auditor tool) |
 | Other language generators | Not yet started |
 
 Validated on this repo's own source and against real external repositories.
