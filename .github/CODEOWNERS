@@ -1,2 +1,5 @@
-# This file automatically assigns you to review any changes to the repository
-* @Holeyfield33-art
+# CODEOWNERS — auto-request review from the repo maintainer on every PR
+*                        @holeyfield33-art
+mcp/                     @holeyfield33-art
+python/graph-gen-python/ @holeyfield33-art
+src/                     @holeyfield33-art

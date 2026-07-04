@@ -13,6 +13,7 @@ error, never a result. Secrets (GITHUB_TOKEN) never appear in any surfaced error
 from __future__ import annotations
 
 import json
+import logging
 import os
 import subprocess
 import sys
@@ -35,10 +36,34 @@ _GENERATOR_RUNNER = os.environ.get(
     "HOROS_GENERATOR_RUNNER", str(_REPO_ROOT / "mcp" / "generate_runner.mjs")
 )
 
-_GEN_TIMEOUT_S = int(os.environ.get("HOROS_GEN_TIMEOUT_S", "120"))
-_ROUTER_TIMEOUT_S = int(os.environ.get("HOROS_ROUTER_TIMEOUT_S", "120"))
 # Graph size guard for include_artifacts (bytes of compact JSON).
 _MAX_ARTIFACT_BYTES = int(os.environ.get("HOROS_MAX_ARTIFACT_BYTES", "2000000"))
+
+_log = logging.getLogger(__name__)
+
+
+def _gen_timeout() -> int:
+    """Return the generator timeout, reading from env at call time for live tuning.
+
+    Falls back to 120 s if the env var is absent or not a valid integer.
+    """
+    raw = os.environ.get("HOROS_GEN_TIMEOUT_S", "120")
+    try:
+        return int(raw)
+    except ValueError:
+        return 120
+
+
+def _router_timeout() -> int:
+    """Return the router/verifier timeout, reading from env at call time for live tuning.
+
+    Falls back to 120 s if the env var is absent or not a valid integer.
+    """
+    raw = os.environ.get("HOROS_ROUTER_TIMEOUT_S", "120")
+    try:
+        return int(raw)
+    except ValueError:
+        return 120
 
 _PARTIAL_WARNING = (
     "Selection may be incomplete: unresolved dependencies were found. Files "
@@ -127,12 +152,13 @@ def _generate_graph(
         "--commit-sha",
         sha,
     ]
+    t = _gen_timeout()  # capture once so timeout and error message always agree
     try:
         proc = subprocess.run(
-            cmd, check=False, capture_output=True, timeout=_GEN_TIMEOUT_S, env=env
+            cmd, check=False, capture_output=True, timeout=t, env=env
         )
     except subprocess.TimeoutExpired:
-        raise RouteError("graph_generation_failed", f"generator exceeded {_GEN_TIMEOUT_S}s")
+        raise RouteError("graph_generation_failed", f"generator exceeded {t}s")
     if proc.returncode != 0:
         stderr = _scrub(proc.stderr.decode("utf-8", "replace").strip())
         summary = stderr.splitlines()[-1] if stderr else f"exit {proc.returncode}"
@@ -159,16 +185,17 @@ def _generate_graph_ts(
     try:
         env = dict(os.environ)
         env["HOROS_DIST"] = _DIST
+        t = _gen_timeout()  # capture once so timeout and error message always agree
         try:
             proc = subprocess.run(
                 ["node", _GENERATOR_RUNNER, req_path],
                 check=False,
                 capture_output=True,
-                timeout=_GEN_TIMEOUT_S,
+                timeout=t,
                 env=env,
             )
         except subprocess.TimeoutExpired:
-            raise RouteError("graph_generation_failed", f"generator exceeded {_GEN_TIMEOUT_S}s")
+            raise RouteError("graph_generation_failed", f"generator exceeded {t}s")
         out = proc.stdout.decode("utf-8", "replace").strip()
         try:
             result = json.loads(out) if out else {}
@@ -258,16 +285,17 @@ def _run_router(graph_path: Path, task: str, manual_include: list[str]) -> dict:
     try:
         env = dict(os.environ)
         env["HOROS_DIST"] = _DIST
+        t = _router_timeout()  # capture once so timeout and error message always agree
         try:
             proc = subprocess.run(
                 ["node", _ROUTER_RUNNER, req_path],
                 check=False,
                 capture_output=True,
-                timeout=_ROUTER_TIMEOUT_S,
+                timeout=t,
                 env=env,
             )
         except subprocess.TimeoutExpired:
-            raise RouteError("router_failed", f"router exceeded {_ROUTER_TIMEOUT_S}s")
+            raise RouteError("router_failed", f"router exceeded {t}s")
         out = proc.stdout.decode("utf-8", "replace").strip()
         try:
             result = json.loads(out) if out else {}
@@ -353,6 +381,14 @@ def route_context(
     Raises RouteError / CloneError on any clean failure (mapped to a tool error).
     """
     manual_include = list(manual_include or [])
+    # Validate each path: relative, no traversal, reasonable length.
+    for _p in manual_include:
+        if len(_p) > 1024:
+            raise RouteError("invalid_input", f"manual_include path exceeds 1024 chars")
+        if _p.startswith("/"):
+            raise RouteError("invalid_input", f"manual_include path must be relative, not absolute")
+        if ".." in Path(_p).parts:
+            raise RouteError("invalid_input", f"manual_include path must not contain '..'")
     with clone_repo(repo, ref) as ws:
         language = _detect_language(ws.workspace_path)
         config_synthesized = False

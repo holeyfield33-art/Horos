@@ -14,6 +14,7 @@ therefore serve that wrapped app with uvicorn rather than calling ``mcp.run()``.
 
 from __future__ import annotations
 
+import logging
 import os
 
 from mcp.server.fastmcp import FastMCP
@@ -59,7 +60,10 @@ def register_tools(mcp: FastMCP) -> None:
         try:
             return _route_context(repo, task, ref, config, manual_include, include_artifacts)
         except (CloneError, RouteError) as exc:
-            # Clean, secret-free tool error (codes per SPEC §5/§6).
+            # Log server-side with full context; surface only the clean code+detail to the client.
+            logging.getLogger(__name__).warning(
+                "route_context error code=%s detail=%s", exc.code, exc.detail
+            )
             raise ToolError(f"{exc.code}: {exc.detail}") from None
 
     @mcp.tool()
@@ -80,6 +84,9 @@ def register_tools(mcp: FastMCP) -> None:
         try:
             return _verify_receipt(receipt, graph, task, manual_include)
         except RouteError as exc:
+            logging.getLogger(__name__).warning(
+                "verify_receipt error code=%s detail=%s", exc.code, exc.detail
+            )
             raise ToolError(f"{exc.code}: {exc.detail}") from None
 
 

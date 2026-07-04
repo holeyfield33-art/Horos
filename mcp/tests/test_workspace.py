@@ -123,6 +123,26 @@ def test_token_scrubbed_from_errors(monkeypatch):
     assert "***" in str(exc.value)
 
 
+def test_token_scrubbed_when_appearing_in_remote_url(monkeypatch):
+    """Full token-bearing remote URL in stderr must be redacted in CloneError.detail."""
+    token = "ghp_url_leak_test_9988"
+
+    class P:
+        returncode = 128
+        # Simulate git printing the full authed URL (common on auth failure)
+        stderr = (
+            f"ERROR: Repository not found.\n"
+            f"fatal: repository 'https://x-access-token:{token}@github.com/owner/repo.git'"
+            f" not found"
+        ).encode()
+
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: P())
+    with pytest.raises(CloneError) as exc:
+        workspace._run_git(["clone", "x"], token=token, timeout=60)
+    assert token not in str(exc.value), "raw token must not appear in CloneError message"
+    assert "***" in str(exc.value), "redacted token placeholder must appear"
+
+
 def test_file_count_cap(tmp_path, monkeypatch):
     url, _ = _make_bare_repo(tmp_path)
     monkeypatch.setattr(workspace, "normalize_repo", lambda repo: (url, "owner/repo"))
