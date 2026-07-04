@@ -13,6 +13,9 @@ is never logged nor echoed in any response.
 from __future__ import annotations
 
 import hmac
+import json
+import os
+from pathlib import Path
 
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -44,7 +47,12 @@ class BearerAuthMiddleware:
             return
 
         if scope.get("path") == self._health_path:
-            await self._healthz(send)
+            # Use parse_qs (already imported for ?token= handling) to avoid
+            # substring false-positives like deep=trueish.
+            from urllib.parse import parse_qs
+            qs = parse_qs(scope.get("query_string", b"").decode("latin-1"))
+            deep = qs.get("deep", ["false"])[0].lower() == "true"
+            await self._healthz(send, deep=deep)
             return
 
         if not self._authorized(scope):
@@ -81,7 +89,37 @@ class BearerAuthMiddleware:
             return None
         return vals[0].encode("utf-8")
 
-    async def _healthz(self, send: Send) -> None:
+    async def _healthz(self, send: Send, *, deep: bool = False) -> None:
+        if deep:
+            # Verify that dist/verify/index.js exists and horos_mcp.router is
+            # importable. Returns 503 so load-balancers can route away on failure.
+            dist = os.environ.get("HOROS_DIST", str(Path(__file__).resolve().parents[2] / "dist"))
+            checks: dict[str, str] = {}
+            ok = True
+
+            verify_js = Path(dist) / "verify" / "index.js"
+            if verify_js.exists():
+                checks["dist_verify_js"] = "ok"
+            else:
+                checks["dist_verify_js"] = f"missing: {verify_js}"
+                ok = False
+
+            try:
+                import horos_mcp.router as _r  # noqa: F401
+                checks["horos_mcp_router"] = "ok"
+            except Exception as exc:  # pragma: no cover
+                checks["horos_mcp_router"] = str(exc)
+                ok = False
+
+            body = json.dumps({"status": "ok" if ok else "unhealthy", "checks": checks}).encode()
+            await send({
+                "type": "http.response.start",
+                "status": 200 if ok else 503,
+                "headers": [(b"content-type", b"application/json")],
+            })
+            await send({"type": "http.response.body", "body": body})
+            return
+
         body = b'{"status":"ok"}'
         await send(
             {

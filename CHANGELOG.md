@@ -60,6 +60,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## Future Work
+
+- **SPEC-v0.1.md §9 — Option C (committed-graph path):** The current server generates
+  the dependency graph in-request (Option A). Option C — consuming a committed
+  `graph.json` from the repository — is deferred to a future release.  It becomes
+  load-bearing only when the graph producer and the MCP server operator are different
+  trusted parties.  Tracked for `v0.5`.
+- **Per-client rate limiting:** The server relies on Render’s platform-level rate
+  limiting in v1.  A built-in token-bucket or sliding-window rate limiter is planned
+  for a future hardening release.
+- **Structured JSON logging:** Current logging uses Python’s stdlib formatter.  A
+  `python-json-logger` integration is planned to improve Render log parseability.
+
+---
+
 ## [0.3.3] — 2026-06-22
 
 ### Added

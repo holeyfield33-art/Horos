@@ -82,7 +82,10 @@ def test_route_context_tool_is_listed():
     mcp = build_mcp()
     tools = asyncio.run(mcp.list_tools())
     names = [t.name for t in tools]
+    # Both MCP tools must be registered (SPEC §3).
     assert "route_context" in names
+    assert "verify_receipt" in names
+    # route_context schema sanity: required params present.
     tool = next(t for t in tools if t.name == "route_context")
     props = tool.inputSchema.get("properties", {})
     assert {"repo", "task"}.issubset(props.keys())

@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from .router import RouteError, _DIST, _ROUTER_TIMEOUT_S, _scrub
+from .router import RouteError, _DIST, _router_timeout, _scrub
 
 _VERIFY_RUNNER = os.environ.get(
     "HOROS_VERIFY_RUNNER",
@@ -47,16 +47,17 @@ def verify_receipt(
     try:
         env = dict(os.environ)
         env["HOROS_DIST"] = _DIST
+        t = _router_timeout()  # capture once so timeout and error message always agree
         try:
             proc = subprocess.run(
                 ["node", _VERIFY_RUNNER, req_path],
                 check=False,
                 capture_output=True,
-                timeout=_ROUTER_TIMEOUT_S,
+                timeout=t,
                 env=env,
             )
         except subprocess.TimeoutExpired:
-            raise RouteError("verify_failed", f"verifier exceeded {_ROUTER_TIMEOUT_S}s")
+            raise RouteError("verify_failed", f"verifier exceeded {t}s")
         raw = proc.stdout.decode("utf-8", "replace").strip()
         try:
             result = json.loads(raw) if raw else {}
