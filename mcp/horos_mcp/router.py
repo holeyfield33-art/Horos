@@ -227,7 +227,14 @@ def _attach_artifacts(response: dict, artifact: dict, router: dict) -> None:
             f"exceeds HOROS_MAX_ARTIFACT_BYTES ({_MAX_ARTIFACT_BYTES})"
         )
         return
-    response["receipt_document"] = router.get("full_receipt")
+    full_receipt = router.get("full_receipt")
+    if full_receipt is None:
+        # Runner didn't expose full_receipt (e.g. older or overridden runner).
+        # Treat as an omission rather than silently setting receipt_document=None,
+        # which would silently break verify_receipt composition.
+        response["artifacts_omitted"] = "full_receipt unavailable from router runner"
+        return
+    response["receipt_document"] = full_receipt
     response["graph_document"] = artifact
 
 

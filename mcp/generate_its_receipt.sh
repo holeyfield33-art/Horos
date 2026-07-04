@@ -33,11 +33,22 @@ echo "  commit: $SHA"
 
 echo ""
 echo "=== Writing synthesised horos.json ==="
-# Mirror what _synthesize_python_config does: probe src/, lib/, app/
-SOURCE_ROOTS="src"
-[ -d "$DEST/lib" ] && SOURCE_ROOTS="src\", \"lib"
-[ -d "$DEST/app" ] && SOURCE_ROOTS="$SOURCE_ROOTS\", \"app"
-echo "{\"python_source_roots\": [\"$SOURCE_ROOTS\"], \"external_modules\": []}" > "$DEST/horos.json"
+# Mirror _synthesize_python_config exactly: probe src/, lib/, app/ in order;
+# fall back to [""] (repo root) when none exist.
+SOURCE_ROOTS=()
+[ -d "$DEST/src" ] && SOURCE_ROOTS+=("src")
+[ -d "$DEST/lib" ] && SOURCE_ROOTS+=("lib")
+[ -d "$DEST/app" ] && SOURCE_ROOTS+=("app")
+[ ${#SOURCE_ROOTS[@]} -eq 0 ] && SOURCE_ROOTS+=("")
+python3 -c '
+import json, sys, pathlib
+dest = pathlib.Path(sys.argv[1])
+roots = sys.argv[2:]
+(dest / "horos.json").write_text(
+    json.dumps({"python_source_roots": roots, "external_modules": []}),
+    encoding="utf-8",
+)
+' "$DEST" "${SOURCE_ROOTS[@]}"
 echo "  wrote: $(cat "$DEST/horos.json")"
 
 echo ""
