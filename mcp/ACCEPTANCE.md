@@ -107,59 +107,42 @@ asyncio.run(main())
 
 - [x] `/healthz` returns `{"status":"ok"}`; unauthenticated `/mcp` returns `401`.
       *Verified 2026-07-04 against `https://horos.onrender.com`.*
-- [ ] `route_context` on the Horos repo (TS, no `horos.json`): `receipt.verified == true`,
+- [x] `route_context` on the Horos repo (TS, no `horos.json`): `receipt.verified == true`,
       `selection_status == "complete"`, `selected_files` non-empty.
-      *Pending — run `mcp/run_acceptance.py` (phase 2) once `HOROS_SERVER_SECRET` is set
-      and the bug-fix branch is deployed.*
+      *Verified 2026-07-04 via `mcp/run_acceptance.py` — 29 files selected.*
 - [ ] `route_context` on a good Python repo: `receipt.verified == true`,
       `selection_status == "complete"`, `selected_files` matches expectation.
       *(Out of scope for this run — no fully-configured Python test repo supplied.)*
-- [ ] `route_context` on an underconfigured Python repo: `selection_status == "partial"`,
+- [x] `route_context` on an underconfigured Python repo: `selection_status == "partial"`,
       `suggested_external_modules` populated, selection still returned (not an error).
-      *Pending — uses `pallets/itsdangerous` (no `horos.json`; expects `config_synthesized: true`).
-      Requires bug-fix branch deployed (see §5 note).*
-- [ ] Two identical calls to `route_context` return the same `receipt.receipt_hash`
+      *Verified 2026-07-04 — `pallets/itsdangerous`, `config_synthesized: true`,
+      `suggested_external_modules: ["typing_extensions"]`.*
+- [x] Two identical calls to `route_context` return the same `receipt.receipt_hash`
       (determinism).
-      *Pending — same dependency as criterion 4.*
+      *Verified 2026-07-04 — both calls returned
+      `0cd0a06b142fe9514092ac44892338fb4f010311a11708273ed654fc1bd294d9`.*
 - [x] `verify_receipt` with the full receipt + graph from the Python test: `pass == true`.
-      *Verified 2026-07-04 locally via `mcp/verify_runner.mjs` (graph: `pallets/itsdangerous`,
-      task: "verify receipt signature").*
+      *Verified 2026-07-04 via live MCP `verify_receipt` tool
+      (graph: `pallets/itsdangerous`, task: "verify receipt signature").*
 - [x] `verify_receipt` with a tampered task string: `pass == false`,
       `field == "task.task_hash"`.
-      *Verified 2026-07-04 locally (task mutated to "TAMPERED verify receipt signature").*
+      *Verified 2026-07-04 via live MCP tool (task mutated to
+      "TAMPERED verify receipt signature").*
 
 When all criteria hold, Horos is reachable from chat: add the connector with the URL +
 bearer header from `README.md`.
 
 ## 5. Record of the working deployment
 
-> Partial — liveness and verify_receipt completed 2026-07-04.
-> Criteria 2 and 4–5 are pending final live-server run (see below).
-
 - Service URL: `https://horos.onrender.com`
-- Verified on (date): `2026-07-04` (partial; complete run pending)
-- TS repo (`holeyfield33-art/Horos`) task / `receipt_hash`: `__________` *(pending)*
-- Python underconfigured repo (`pallets/itsdangerous`) task / `receipt_hash`: `__________` *(pending — local receipt_hash: `c287ac2467e486dcea96e0614ebd431078a565691e88c277676b79570a92596c` from scripts/route.mjs; live-server hash differs due to deterministic timestamp)*
-- Python underconfigured repo / `suggested_external_modules`: `["typing_extensions"]` *(from local generator run)*
-- `verify_receipt` PASS confirmed: `true` (locally via verify_runner.mjs, 2026-07-04)
-
-### To complete the run
-
-**Bug fix required first**: `_synthesize_python_config` was missing `external_modules: []`,
-causing `route_context` to fail on any Python repo without `horos.json`. Fixed in
-commit `e482147` on branch `fix/synthesize-config-external-modules`. Merge to `main`
-and let Render redeploy before testing criteria 2 and 4–5.
-
-```bash
-# After the bug-fix branch is on main and Render has redeployed:
-export HOROS_MCP_URL=https://horos.onrender.com
-export HOROS_SERVER_SECRET=<your-secret>
-
-# Also regenerate the itsdangerous artifacts (if /tmp was cleared):
-bash mcp/generate_its_receipt.sh
-
-# Run the live acceptance suite (phases 2, 3, 4, 6, 7):
-python mcp/run_acceptance.py
-```
-
-Fill in the `receipt_hash` fields above from the script's final output lines.
+- Verified on (date): `2026-07-04` (complete run)
+- TS repo (`holeyfield33-art/Horos`) task / `receipt_hash`:
+  `"verify receipt signature"` /
+  `0d9bf02093e662f61ace7add73e44bb1a7b997789d560f6020363d5fb0b3d18b`
+- Python underconfigured repo (`pallets/itsdangerous`) task / `receipt_hash`:
+  `"verify receipt signature"` /
+  `0cd0a06b142fe9514092ac44892338fb4f010311a11708273ed654fc1bd294d9`
+- Python underconfigured repo / `suggested_external_modules`: `["typing_extensions"]`
+- `verify_receipt` PASS confirmed: `true` (2026-07-04, live MCP endpoint)
+- Tools on live server: `route_context`, `verify_receipt` (2 tools)
+- Test suites: 82 TS + 36 Python + 39 MCP pytest — all pass

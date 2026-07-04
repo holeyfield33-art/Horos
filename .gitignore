@@ -6,6 +6,11 @@ dist/
 # Python
 __pycache__/
 *.pyc
+
+# Local secrets — never commit
+env/
+.vscode/mcp.json
+
 # Local Horos artifacts
 graph.json
 receipt.json
