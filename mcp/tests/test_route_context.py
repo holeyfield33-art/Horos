@@ -16,6 +16,7 @@ import pytest
 
 from horos_mcp import router, workspace
 from horos_mcp.router import RouteError, _generate_graph, _run_router, route_context
+from horos_mcp.verifier import verify_receipt as _verify_receipt
 
 # A "complete" fixture: all deps listed/internal. main imports an internal module and
 # stdlib json (an external_boundary, which must NOT flip status to partial).
@@ -162,3 +163,124 @@ def test_router_unverified_receipt_is_rejected(tmp_path, monkeypatch):
     with pytest.raises(RouteError) as exc:
         _run_router(tmp_path / "g.json", "task", [])
     assert exc.value.code == "router_failed"
+
+
+# ---------------------------------------------------------------------------
+# Task 2 — include_artifacts / verify_receipt composition
+# ---------------------------------------------------------------------------
+
+def test_include_artifacts_enables_verify_receipt_composition(tmp_path, monkeypatch):
+    """include_artifacts=True → receipt_document + graph_document; round-trip verifies."""
+    url = _build_repo(tmp_path, COMPLETE_FILES, COMPLETE_HOROS)
+    _patch_remote(monkeypatch, url)
+
+    resp = route_context("owner/repo", task="helper util", include_artifacts=True)
+
+    assert "receipt_document" in resp, "receipt_document missing when include_artifacts=True"
+    assert "graph_document" in resp, "graph_document missing when include_artifacts=True"
+    assert "artifacts_omitted" not in resp
+
+    # Composition: feed the artifacts directly into verify_receipt.
+    vpass = _verify_receipt(resp["receipt_document"], resp["graph_document"], "helper util")
+    assert vpass["pass"] is True
+
+    # Mutated task → fail on task.task_hash.
+    vfail = _verify_receipt(resp["receipt_document"], resp["graph_document"], "TAMPERED helper util")
+    assert vfail["pass"] is False
+    assert vfail["field"] == "task.task_hash"
+
+
+def test_default_call_has_no_artifact_docs(tmp_path, monkeypatch):
+    """Default route_context (include_artifacts=False) exposes no artifact keys."""
+    url = _build_repo(tmp_path, COMPLETE_FILES, COMPLETE_HOROS)
+    _patch_remote(monkeypatch, url)
+
+    resp = route_context("owner/repo", task="helper util")
+    assert "receipt_document" not in resp
+    assert "graph_document" not in resp
+    assert "artifacts_omitted" not in resp
+
+
+def test_artifacts_omitted_when_graph_too_large(tmp_path, monkeypatch):
+    """When graph exceeds size cap, artifacts_omitted is set and documents absent."""
+    url = _build_repo(tmp_path, COMPLETE_FILES, COMPLETE_HOROS)
+    _patch_remote(monkeypatch, url)
+
+    monkeypatch.setattr(router, "_MAX_ARTIFACT_BYTES", 1)  # force any graph to exceed
+    resp = route_context("owner/repo", task="helper util", include_artifacts=True)
+
+    assert "receipt_document" not in resp
+    assert "graph_document" not in resp
+    assert "artifacts_omitted" in resp
+    assert "exceeds" in resp["artifacts_omitted"]
+
+
+# ---------------------------------------------------------------------------
+# Task 3 — selection_note guidance on empty selection
+# ---------------------------------------------------------------------------
+
+def test_shape_response_empty_selection_note_all_signals():
+    """_shape_response with empty selection builds note from all three signals."""
+    from horos_mcp.router import _shape_response
+
+    fake_router = {
+        "receipt": {
+            "receipt_hash": "aaa", "task_hash": "bbb",
+            "config_hash": "ccc", "graph_artifact_hash": "ddd",
+        },
+        "selection": [],
+        "exclusions": [],
+        "coverage": {"files_scanned": 5, "files_selected": 0, "unresolved_symbols": []},
+    }
+    fake_artifact = {
+        "metadata": {
+            "completeness": "partial",
+            "coverage": {"unresolved_edges": 12},
+        },
+        "edges": [],
+    }
+    resp = _shape_response(
+        "abc",
+        fake_router,
+        ["requests"],
+        artifact=fake_artifact,
+        config_synthesized=True,
+    )
+
+    note = resp["selection_note"]
+    assert "no entrypoints matched the task" in note
+    assert "partial" in note and "12" in note  # partial graph, edge count
+    assert "requests" in note                  # suggested external_modules
+    assert "horos.json" in note                # config synthesised hint
+
+
+def test_shape_response_empty_selection_note_minimal():
+    """_shape_response without extra signals → minimal note, no conditional parts."""
+    from horos_mcp.router import _shape_response
+
+    fake_router = {
+        "receipt": {
+            "receipt_hash": "aaa", "task_hash": "bbb",
+            "config_hash": "ccc", "graph_artifact_hash": "ddd",
+        },
+        "selection": [],
+        "exclusions": [],
+        "coverage": {"files_scanned": 1, "files_selected": 0, "unresolved_symbols": []},
+    }
+    resp = _shape_response("abc", fake_router, [], artifact=None, config_synthesized=False)
+
+    assert "selection_note" in resp
+    note = resp["selection_note"]
+    assert "no entrypoints matched the task" in note
+    assert "partial" not in note
+    assert "horos.json" not in note
+
+
+def test_non_empty_selection_has_no_note(tmp_path, monkeypatch):
+    """Non-empty selection must NOT carry a selection_note key."""
+    url = _build_repo(tmp_path, COMPLETE_FILES, COMPLETE_HOROS)
+    _patch_remote(monkeypatch, url)
+
+    resp = route_context("owner/repo", task="helper util")
+    assert len(resp["selected_files"]) >= 1
+    assert "selection_note" not in resp

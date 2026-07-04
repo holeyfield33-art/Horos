@@ -102,11 +102,20 @@ returns suggested `external_modules` in its response (see §6) for the user to c
     "task_hash": "hex",
     "config_hash": "hex",
     "graph_artifact_hash": "hex"
-  }
+  },
+  // Optional — only present when applicable:
+  "config_synthesized": true,                        // Python repo had no horos.json
+  "selection_note": "no entrypoints matched the task; ...",  // only when selected_files is empty
+  // Only when include_artifacts=true (see §7):
+  "receipt_document": { /* full signed Receipt object */ },
+  "graph_document":   { /* full graph artifact */        },
+  // Or, if graph exceeds HOROS_MAX_ARTIFACT_BYTES:
+  "artifacts_omitted": "graph_document is N bytes, exceeds HOROS_MAX_ARTIFACT_BYTES (M)"
 }
 ```
 
-The full graph artifact and full receipt body are **never inlined** (§7).
+By default the full graph artifact and full receipt body are **not inlined** (§7).  Pass
+`include_artifacts: true` to opt in; see §7 for the size guard.
 
 ---
 
@@ -168,11 +177,16 @@ result stays actionable instead of being a dead end.
 
 ## 7. Response size discipline
 
-Inline: `selected_files`, `exclusions`, `unresolved_signal`, `suggested_external_modules`,
-and the thin receipt summary (hashes + verify status). NOT inlined: the full graph
-artifact (internal temp file, discarded after the call) and the full receipt body
-(referenced by hash; optionally written to object storage and returned by URI if a body is
-needed).
+Inline by default: `selected_files`, `exclusions`, `unresolved_signal`,
+`suggested_external_modules`, and the thin receipt summary (hashes + verify status).
+NOT inlined by default: the full graph artifact and the full receipt body.
+
+**`include_artifacts` opt-in:** passing `include_artifacts: true` adds `receipt_document`
+(the full signed Receipt object) and `graph_document` (the full graph artifact) to the
+response, enabling a direct `verify_receipt` round-trip without re-cloning the repository.
+A size guard (`HOROS_MAX_ARTIFACT_BYTES`, default 2 000 000 bytes) caps inlining: if the
+compact-JSON graph exceeds the limit, both documents are omitted and `artifacts_omitted`
+is set to a descriptive string.  The call **never fails** over artifact size.
 
 ---
 

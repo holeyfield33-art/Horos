@@ -39,13 +39,25 @@ def register_tools(mcp: FastMCP) -> None:
         ref: str | None = None,
         config: str = "horos.json",
         manual_include: list[str] | None = None,
+        include_artifacts: bool = False,
     ) -> dict:
         """Clone a repo at a ref, generate its dependency graph, route the minimal
         context for a task via the Horos selector, and return the selected files plus
         a signed receipt.
+
+        When ``include_artifacts`` is True the response also carries
+        ``receipt_document`` (the full signed Receipt object) and ``graph_document``
+        (the full graph artifact JSON), enabling a direct ``verify_receipt``
+        round-trip without any additional cloning.  If the serialised graph exceeds
+        HOROS_MAX_ARTIFACT_BYTES (default 2 MB) both documents are omitted and
+        ``artifacts_omitted`` is set instead — the call never fails over size.
+
+        When selection is empty, ``selection_note`` provides actionable guidance
+        built from real graph signals (partial completeness, unresolved modules,
+        synthesised config) rather than a canned string.
         """
         try:
-            return _route_context(repo, task, ref, config, manual_include)
+            return _route_context(repo, task, ref, config, manual_include, include_artifacts)
         except (CloneError, RouteError) as exc:
             # Clean, secret-free tool error (codes per SPEC §5/§6).
             raise ToolError(f"{exc.code}: {exc.detail}") from None
