@@ -83,7 +83,8 @@ def _synthesize_python_config(workspace: Path) -> Path:
     source_roots = [d for d in candidates if (workspace / d).is_dir()] or [""]
     config_path = workspace / "horos.json"
     config_path.write_text(
-        json.dumps({"python_source_roots": source_roots}), encoding="utf-8"
+        json.dumps({"python_source_roots": source_roots, "external_modules": []}),
+        encoding="utf-8",
     )
     return config_path
 
