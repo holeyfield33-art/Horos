@@ -18,7 +18,7 @@ Both tools wrap proven components and change none of them. Source of truth:
 
 ### `route_context`
 
-`route_context(repo, task, ref=None, config="horos.json", manual_include=[])`
+`route_context(repo, task, ref=None, config="horos.json", manual_include=[], include_artifacts=False)`
 
 - `repo` — `owner/repo` shorthand or an `https://github.com/...` URL (github.com only).
 - `task` — what the context is for (drives selection).
@@ -26,6 +26,12 @@ Both tools wrap proven components and change none of them. Source of truth:
 - `config` — repo-relative path to `horos.json`. Default: `horos.json`. Used for Python
   repos only; ignored when a `tsconfig.json` is detected.
 - `manual_include` — extra paths to record in the receipt.
+- `include_artifacts` — when `True`, the response also contains `receipt_document`
+  (the full signed Receipt object) and `graph_document` (the full graph artifact),
+  enabling a direct `verify_receipt` round-trip without any additional cloning.
+  If the serialised graph exceeds `HOROS_MAX_ARTIFACT_BYTES` (default 2 MB) both
+  documents are omitted and `artifacts_omitted` is set instead; the call never fails
+  over artifact size.
 
 **Language detection** (in priority order):
 1. `horos.json` present → Python generator path (explicit signal).
@@ -36,8 +42,40 @@ Both tools wrap proven components and change none of them. Source of truth:
 Returns the selected files, exclusions, the receipt summary (hashes + `verified: true`),
 and — when an **unlisted** third-party import is found — `selection_status: "partial"`
 with an `unresolved_signal` and a `suggested_external_modules` list to add to `horos.json`
-and re-run. A partial result is never reported as complete, and a receipt that does not
-verify is an error, never a result.
+and re-run. When selection is empty, `selection_note` provides actionable guidance derived
+from real graph signals (partial completeness, unresolved modules, synthesised config).
+A partial result is never reported as complete, and a receipt that does not verify is an
+error, never a result.
+
+**Composition example** — route then verify without re-cloning:
+
+```python
+import asyncio, os
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
+
+URL = os.environ["HOROS_MCP_URL"].rstrip("/") + "/mcp"
+HEADERS = {"Authorization": f"Bearer {os.environ['HOROS_SERVER_SECRET']}"}
+
+async def main():
+    async with streamablehttp_client(URL, headers=HEADERS) as (r, w, _):
+        async with ClientSession(r, w) as s:
+            await s.initialize()
+            resp = (await s.call_tool("route_context", {
+                "repo": "owner/repo",
+                "task": "add login flow",
+                "include_artifacts": True,
+            })).structuredContent
+
+            vfy = (await s.call_tool("verify_receipt", {
+                "receipt": resp["receipt_document"],
+                "graph":   resp["graph_document"],
+                "task":    "add login flow",
+            })).structuredContent
+            assert vfy["pass"] is True
+
+asyncio.run(main())
+```
 
 ### `verify_receipt`
 
@@ -61,6 +99,7 @@ verification inputs are supplied inline.
 | `PORT` | provided by Render | Listen port (default `8000` locally). |
 | `HOROS_CLONE_TIMEOUT_S` / `HOROS_GEN_TIMEOUT_S` / `HOROS_ROUTER_TIMEOUT_S` | no | Stage timeouts (default 60 / 120 / 120 s). |
 | `HOROS_MAX_FILES` / `HOROS_MAX_BYTES` | no | Workspace caps (default 50000 files / 500 MB). |
+| `HOROS_MAX_ARTIFACT_BYTES` | no | Graph size threshold for `include_artifacts` (default 2000000 = 2 MB). Graphs above this omit both documents and set `artifacts_omitted`. |
 
 ## Security posture (§8)
 

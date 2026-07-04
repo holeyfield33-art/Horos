@@ -37,6 +37,8 @@ _GENERATOR_RUNNER = os.environ.get(
 
 _GEN_TIMEOUT_S = int(os.environ.get("HOROS_GEN_TIMEOUT_S", "120"))
 _ROUTER_TIMEOUT_S = int(os.environ.get("HOROS_ROUTER_TIMEOUT_S", "120"))
+# Graph size guard for include_artifacts (bytes of compact JSON).
+_MAX_ARTIFACT_BYTES = int(os.environ.get("HOROS_MAX_ARTIFACT_BYTES", "2000000"))
 
 _PARTIAL_WARNING = (
     "Selection may be incomplete: unresolved dependencies were found. Files "
@@ -83,7 +85,8 @@ def _synthesize_python_config(workspace: Path) -> Path:
     source_roots = [d for d in candidates if (workspace / d).is_dir()] or [""]
     config_path = workspace / "horos.json"
     config_path.write_text(
-        json.dumps({"python_source_roots": source_roots}), encoding="utf-8"
+        json.dumps({"python_source_roots": source_roots, "external_modules": []}),
+        encoding="utf-8",
     )
     return config_path
 
@@ -187,6 +190,54 @@ def _generate_graph_ts(
             pass
 
 
+def _build_selection_note(
+    mnf: list[str],
+    artifact: dict | None,
+    config_synthesized: bool,
+) -> str:
+    """Build a human-readable note when the selection is empty."""
+    parts = ["no entrypoints matched the task"]
+    if artifact:
+        completeness = artifact.get("metadata", {}).get("completeness", "")
+        if completeness == "partial":
+            n = artifact.get("metadata", {}).get("coverage", {}).get("unresolved_edges", 0)
+            parts.append(
+                f"graph is partial ({n} unresolved edge{'s' if n != 1 else ''})"
+            )
+    if mnf:
+        parts.append(f"add these to external_modules and retry: {mnf!r}")
+    if config_synthesized:
+        parts.append(
+            "a default config was used; committing a horos.json may improve coverage"
+        )
+    return "; ".join(parts)
+
+
+def _attach_artifacts(response: dict, artifact: dict, router: dict) -> None:
+    """Attach receipt_document + graph_document to *response* (include_artifacts=True).
+
+    Subject to HOROS_MAX_ARTIFACT_BYTES size guard.  Never fails the call — if
+    the graph is too large both documents are omitted and ``artifacts_omitted``
+    is set instead.
+    """
+    graph_bytes = json.dumps(artifact, separators=(",", ":")).encode()
+    if len(graph_bytes) > _MAX_ARTIFACT_BYTES:
+        response["artifacts_omitted"] = (
+            f"graph_document is {len(graph_bytes)} bytes, "
+            f"exceeds HOROS_MAX_ARTIFACT_BYTES ({_MAX_ARTIFACT_BYTES})"
+        )
+        return
+    full_receipt = router.get("full_receipt")
+    if full_receipt is None:
+        # Runner didn't expose full_receipt (e.g. older or overridden runner).
+        # Treat as an omission rather than silently setting receipt_document=None,
+        # which would silently break verify_receipt composition.
+        response["artifacts_omitted"] = "full_receipt unavailable from router runner"
+        return
+    response["receipt_document"] = full_receipt
+    response["graph_document"] = artifact
+
+
 def _module_not_found(artifact: dict) -> list[str]:
     """Distinct top-level module_not_found specifiers — the generator's report source."""
     names = {
@@ -236,17 +287,25 @@ def _run_router(graph_path: Path, task: str, manual_include: list[str]) -> dict:
             pass
 
 
-def _shape_response(commit_sha: str, router: dict, mnf: list[str]) -> dict:
+def _shape_response(
+    commit_sha: str,
+    router: dict,
+    mnf: list[str],
+    *,
+    artifact: dict | None = None,
+    config_synthesized: bool = False,
+) -> dict:
     # selection_status is driven by module_not_found (genuinely unlisted deps), not the
     # generator's raw `completeness` flag — which is `partial` for any external/stdlib
     # boundary even when every dep is listed. Listed externals/stdlib => complete;
     # an unlisted third-party import => partial. (DECISIONS-mcp.md.)
     partial = bool(mnf)
     receipt = router["receipt"]
+    selection = router["selection"]
     response: dict = {
         "repo_commit": commit_sha,
         "selection_status": "partial" if partial else "complete",
-        "selected_files": router["selection"],
+        "selected_files": selection,
         "exclusions": [
             {"path": e["path"], "reason": e["reason_code"]} for e in router["exclusions"]
         ],
@@ -267,6 +326,10 @@ def _shape_response(commit_sha: str, router: dict, mnf: list[str]) -> dict:
             "module_not_found": mnf,
         }
         response["suggested_external_modules"] = mnf
+    if config_synthesized:
+        response["config_synthesized"] = True
+    if not selection:
+        response["selection_note"] = _build_selection_note(mnf, artifact, config_synthesized)
     return response
 
 
@@ -276,8 +339,16 @@ def route_context(
     ref: str | None = None,
     config: str = "horos.json",
     manual_include: list[str] | None = None,
+    include_artifacts: bool = False,
 ) -> dict:
     """Run the full clone→generate→route chain and return the §3 response.
+
+    When ``include_artifacts`` is ``True`` the response also carries
+    ``receipt_document`` (the full signed Receipt) and ``graph_document`` (the
+    full graph artifact), enabling a direct ``verify_receipt`` round-trip.  If
+    the serialised graph exceeds ``HOROS_MAX_ARTIFACT_BYTES`` both documents are
+    omitted and ``artifacts_omitted`` is set instead.  The call never fails over
+    artifact size.
 
     Raises RouteError / CloneError on any clean failure (mapped to a tool error).
     """
@@ -300,7 +371,10 @@ def route_context(
                 artifact = json.loads(graph_path.read_text(encoding="utf-8"))
                 mnf = _module_not_found(artifact)
                 router = _run_router(graph_path, task, manual_include)
-                return _shape_response(ws.commit_sha, router, mnf)
+                response = _shape_response(ws.commit_sha, router, mnf, artifact=artifact)
+                if include_artifacts:
+                    _attach_artifacts(response, artifact, router)
+                return response
         else:
             if not (ws.workspace_path / "horos.json").exists():
                 _synthesize_python_config(ws.workspace_path)
@@ -319,7 +393,11 @@ def route_context(
                 artifact = json.loads(graph_path.read_text(encoding="utf-8"))
                 mnf = _module_not_found(artifact)
                 router = _run_router(graph_path, task, manual_include)
-                response = _shape_response(ws.commit_sha, router, mnf)
-                if config_synthesized:
-                    response["config_synthesized"] = True
+                response = _shape_response(
+                    ws.commit_sha, router, mnf,
+                    artifact=artifact,
+                    config_synthesized=config_synthesized,
+                )
+                if include_artifacts:
+                    _attach_artifacts(response, artifact, router)
                 return response

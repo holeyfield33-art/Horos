@@ -116,6 +116,9 @@ async function main() {
         config_hash: receipt.selector.config_hash,
         graph_artifact_hash: receipt.graph.graph_artifact_hash,
       },
+      // Full receipt object — consumed by Python when include_artifacts=True.
+      // Consumers must treat this as opaque JSON; do not rely on field order.
+      full_receipt: receipt,
       repository: {
         commit_sha: receipt.repository.commit_sha,
         origin: receipt.repository.origin,

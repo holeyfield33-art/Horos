@@ -18,6 +18,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   against its graph artifact and task text without cloning the repository. Returns
   `{pass: true}` or `{pass: false, field, detail}` identifying the exact diverging
   field.
+- **`route_context` `include_artifacts` param**: opt-in flag that adds
+  `receipt_document` (full signed Receipt) and `graph_document` (full graph
+  artifact) to the response, enabling a direct `verify_receipt` round-trip without
+  re-cloning. A size guard (`HOROS_MAX_ARTIFACT_BYTES`, default 2 MB) applies;
+  the call never fails over size — `artifacts_omitted` is set instead.
+- **`selection_note`**: when `route_context` returns an empty selection, the
+  response includes a `selection_note` built from real graph signals: partial
+  completeness (with edge count), unresolved module names, and whether config was
+  synthesised. No canned strings.
+- **Seam regression test** (`mcp/tests/test_synthesis.py`): three tests feed the
+  synthesised `horos.json` to the real `load_config` consumer, closing the gap
+  that let the `external_modules` bug ship.
 - **`horos generate` CLI subcommand**: wraps the TS graph generator;
   `--tsconfig`, `--repo`, `--origin`, `--commit`, `--out`, `--json` flags.
 - **`horos route` CLI subcommand**: wraps the selector + receipt builder;
