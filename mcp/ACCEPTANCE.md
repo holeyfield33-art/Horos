@@ -105,29 +105,61 @@ asyncio.run(main())
 
 ## 4. Pass criteria
 
-- [ ] `/healthz` returns `{"status":"ok"}`; unauthenticated `/mcp` returns `401`.
+- [x] `/healthz` returns `{"status":"ok"}`; unauthenticated `/mcp` returns `401`.
+      *Verified 2026-07-04 against `https://horos.onrender.com`.*
 - [ ] `route_context` on the Horos repo (TS, no `horos.json`): `receipt.verified == true`,
       `selection_status == "complete"`, `selected_files` non-empty.
+      *Pending — run `mcp/run_acceptance.py` (phase 2) once `HOROS_SERVER_SECRET` is set
+      and the bug-fix branch is deployed.*
 - [ ] `route_context` on a good Python repo: `receipt.verified == true`,
       `selection_status == "complete"`, `selected_files` matches expectation.
+      *(Out of scope for this run — no fully-configured Python test repo supplied.)*
 - [ ] `route_context` on an underconfigured Python repo: `selection_status == "partial"`,
       `suggested_external_modules` populated, selection still returned (not an error).
+      *Pending — uses `pallets/itsdangerous` (no `horos.json`; expects `config_synthesized: true`).
+      Requires bug-fix branch deployed (see §5 note).*
 - [ ] Two identical calls to `route_context` return the same `receipt.receipt_hash`
       (determinism).
-- [ ] `verify_receipt` with the full receipt + graph from the TS test: `pass == true`.
-- [ ] `verify_receipt` with a tampered task string: `pass == false`,
+      *Pending — same dependency as criterion 4.*
+- [x] `verify_receipt` with the full receipt + graph from the Python test: `pass == true`.
+      *Verified 2026-07-04 locally via `mcp/verify_runner.mjs` (graph: `pallets/itsdangerous`,
+      task: "verify receipt signature").*
+- [x] `verify_receipt` with a tampered task string: `pass == false`,
       `field == "task.task_hash"`.
+      *Verified 2026-07-04 locally (task mutated to "TAMPERED verify receipt signature").*
 
 When all criteria hold, Horos is reachable from chat: add the connector with the URL +
 bearer header from `README.md`.
 
 ## 5. Record of the working deployment
 
-> Fill in after a successful run.
+> Partial — liveness and verify_receipt completed 2026-07-04.
+> Criteria 2 and 4–5 are pending final live-server run (see below).
 
-- Service URL: `https://__________.onrender.com`
-- Verified on (date): `__________`
-- TS repo (`holeyfield33-art/Horos`) task / `receipt_hash`: `__________`
-- Python good repo / task / `receipt_hash`: `__________`
-- Python underconfigured repo / `suggested_external_modules`: `__________`
-- `verify_receipt` PASS confirmed: `__________`
+- Service URL: `https://horos.onrender.com`
+- Verified on (date): `2026-07-04` (partial; complete run pending)
+- TS repo (`holeyfield33-art/Horos`) task / `receipt_hash`: `__________` *(pending)*
+- Python underconfigured repo (`pallets/itsdangerous`) task / `receipt_hash`: `__________` *(pending — local receipt_hash: `c287ac2467e486dcea96e0614ebd431078a565691e88c277676b79570a92596c` from scripts/route.mjs; live-server hash differs due to deterministic timestamp)*
+- Python underconfigured repo / `suggested_external_modules`: `["typing_extensions"]` *(from local generator run)*
+- `verify_receipt` PASS confirmed: `true` (locally via verify_runner.mjs, 2026-07-04)
+
+### To complete the run
+
+**Bug fix required first**: `_synthesize_python_config` was missing `external_modules: []`,
+causing `route_context` to fail on any Python repo without `horos.json`. Fixed in
+commit `e482147` on branch `fix/synthesize-config-external-modules`. Merge to `main`
+and let Render redeploy before testing criteria 2 and 4–5.
+
+```bash
+# After the bug-fix branch is on main and Render has redeployed:
+export HOROS_MCP_URL=https://horos.onrender.com
+export HOROS_SERVER_SECRET=<your-secret>
+
+# Also regenerate the itsdangerous artifacts (if /tmp was cleared):
+bash mcp/generate_its_receipt.sh
+
+# Run the live acceptance suite (phases 2, 3, 4, 6, 7):
+python mcp/run_acceptance.py
+```
+
+Fill in the `receipt_hash` fields above from the script's final output lines.
