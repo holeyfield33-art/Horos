@@ -113,7 +113,7 @@ def build_app(mcp: FastMCP, secret: str) -> ASGIApp:
     mcp_app = mcp.streamable_http_app()
     combined = Starlette(
         routes=[
-            Route(PUBLIC_ROUTE_PATH, public_route, methods=["POST"]),
+            Route(PUBLIC_ROUTE_PATH, public_route, methods=["POST", "OPTIONS"]),
             Mount("/", app=mcp_app),
         ],
         lifespan=lambda _app: mcp_app.router.lifespan_context(mcp_app),

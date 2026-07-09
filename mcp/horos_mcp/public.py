@@ -32,6 +32,23 @@ from .workspace import CloneError
 # The single public, unauthenticated path. Kept in sync with the auth bypass.
 PUBLIC_ROUTE_PATH = "/public/route"
 
+# ── CORS ──────────────────────────────────────────────────────────────────────
+# Scoped to the GitHub Pages origin that hosts the static UI, and to this
+# endpoint only — /mcp and everything else are untouched. Exact-match origin.
+ALLOW_ORIGIN = os.environ.get(
+    "HOROS_PUBLIC_ALLOW_ORIGIN", "https://holeyfield33-art.github.io"
+)
+
+
+def cors_headers() -> dict[str, str]:
+    return {
+        "Access-Control-Allow-Origin": ALLOW_ORIGIN,
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Vary": "Origin",
+    }
+
+
 # ── Abuse limits ──────────────────────────────────────────────────────────────
 # Cap realistic graphs; anything larger is refused before parsing.
 MAX_BODY_BYTES = int(os.environ.get("HOROS_PUBLIC_MAX_BODY_BYTES", str(5 * 1024 * 1024)))
@@ -172,34 +189,41 @@ def run_public_route(payload: object) -> dict:
 # ── ASGI handler ──────────────────────────────────────────────────────────────
 
 async def public_route(request: Request) -> Response:
+    headers = cors_headers()
+
+    # CORS preflight — answer OPTIONS with the allow-list, no body.
+    if request.method == "OPTIONS":
+        return Response(status_code=204, headers=headers)
+
     # Body-size cap (413) — check the declared length before reading anything.
     declared = request.headers.get("content-length")
     if declared is not None:
         try:
             if int(declared) > MAX_BODY_BYTES:
-                return JSONResponse({"error": "request body too large"}, status_code=413)
+                return JSONResponse({"error": "request body too large"}, status_code=413, headers=headers)
         except ValueError:
-            return JSONResponse({"error": "invalid Content-Length"}, status_code=400)
+            return JSONResponse({"error": "invalid Content-Length"}, status_code=400, headers=headers)
 
     # Per-IP rate limit (429).
     if _rate_limited(_client_ip(request)):
         return JSONResponse(
             {"error": "rate limit exceeded; please retry in a few minutes"},
             status_code=429,
+            headers=headers,
         )
 
     body = await request.body()
     if len(body) > MAX_BODY_BYTES:  # guards chunked bodies with no Content-Length
-        return JSONResponse({"error": "request body too large"}, status_code=413)
+        return JSONResponse({"error": "request body too large"}, status_code=413, headers=headers)
 
     try:
         payload = json.loads(body) if body else None
     except json.JSONDecodeError as exc:
-        return JSONResponse({"error": f"invalid JSON: {exc.msg}"}, status_code=400)
+        return JSONResponse({"error": f"invalid JSON: {exc.msg}"}, status_code=400, headers=headers)
 
     try:
         result = run_public_route(payload)
     except PublicError as exc:
-        return JSONResponse({"error": exc.message}, status_code=exc.status)
+        return JSONResponse({"error": exc.message}, status_code=exc.status, headers=headers)
 
-    return JSONResponse(result)
+    return JSONResponse(result, headers=headers)
