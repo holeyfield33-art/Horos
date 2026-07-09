@@ -26,7 +26,14 @@ HEALTH_PATH = "/healthz"
 class BearerAuthMiddleware:
     """Reject any non-health HTTP request lacking the exact bearer credential."""
 
-    def __init__(self, app: ASGIApp, secret: str, *, health_path: str = HEALTH_PATH) -> None:
+    def __init__(
+        self,
+        app: ASGIApp,
+        secret: str,
+        *,
+        health_path: str = HEALTH_PATH,
+        bypass_paths: frozenset[str] | set[str] | None = None,
+    ) -> None:
         if not secret:
             # Hard fail: never run unauthenticated (SPEC §8).
             raise RuntimeError(
@@ -39,6 +46,10 @@ class BearerAuthMiddleware:
         # connector UIs cannot send a custom Authorization header.
         self._expected_token = secret.encode("utf-8")
         self._health_path = health_path
+        # Paths carved out of the bearer wall and handled by the inner app itself
+        # (e.g. the public, unauthenticated /public/route endpoint). Everything
+        # else keeps the 401 wall.
+        self._bypass_paths = frozenset(bypass_paths or ())
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         # Pass lifespan/websocket/etc. straight through to the inner app.
@@ -53,6 +64,11 @@ class BearerAuthMiddleware:
             qs = parse_qs(scope.get("query_string", b"").decode("latin-1"))
             deep = qs.get("deep", ["false"])[0].lower() == "true"
             await self._healthz(send, deep=deep)
+            return
+
+        if scope.get("path") in self._bypass_paths:
+            # Unauthenticated by design — the inner app owns its own hardening.
+            await self._app(scope, receive, send)
             return
 
         if not self._authorized(scope):

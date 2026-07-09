@@ -61,6 +61,24 @@ echo '.env' >> .gitignore
 Store the seed as an encrypted secret in your CI provider (GitHub Actions secret,
 GitLab variable, etc.) and reference it as `$HOROS_SIGNING_KEY`.
 
+**Deployed MCP server (Render):**
+
+The deployed server derives its receipt-signing identity from the
+`HOROS_KEY_SEED` environment variable — the same 32-byte hex seed described
+above. The operator generates it once:
+
+```sh
+node -e "import {randomBytes} from 'node:crypto'; \
+  console.log(randomBytes(32).toString('hex'))"
+```
+
+and sets it in the Render dashboard (Environment → `HOROS_KEY_SEED`, marked as
+a secret; `render.yaml` declares it with `sync: false`). The server refuses to
+start if `HOROS_KEY_SEED` is unset or is not exactly 64 hex characters, and the
+router runner refuses to sign without it — so no receipt is ever signed with a
+default (forgeable) identity. Every receipt then carries the `public_key`
+derived from this seed. Never commit the seed to the repository.
+
 **What NOT to do:**
 
 - Do not commit the seed to version control.

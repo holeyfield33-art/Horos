@@ -189,10 +189,19 @@ def _capture(args: list[str], dest: Path) -> str:
 
 
 @contextmanager
-def clone_repo(repo: str, ref: str | None = None) -> Iterator[CloneResult]:
-    """Clone ``repo`` at ``ref`` into a temp workspace; clean it up on exit."""
+def clone_repo(
+    repo: str, ref: str | None = None, *, use_token: bool = True
+) -> Iterator[CloneResult]:
+    """Clone ``repo`` at ``ref`` into a temp workspace; clean it up on exit.
+
+    ``use_token`` gates the server's read-only ``GITHUB_TOKEN``. It is True on the
+    authenticated MCP path (private clones allowed for the operator). It MUST be
+    False on the anonymous public path: an unauthenticated caller must never be
+    able to make the server read a private repo on its behalf, so the clone runs
+    tokenless and a private repo simply fails to clone.
+    """
     clean_url, slug = normalize_repo(repo)
-    token = os.environ.get("GITHUB_TOKEN") or None
+    token = (os.environ.get("GITHUB_TOKEN") or None) if use_token else None
     url = _authed_url(clean_url, token)
 
     # TemporaryDirectory removes the workspace on exit, including on any error.
