@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Horos — see which files matter</title>
+<meta name="description" content="Paste a GitHub repo and a task. Horos selects the minimal set of files that matter and returns a signed receipt proving the selection.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Public+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="title">Horos <span class="gk">ὅρος</span></div>
+    <p class="tagline">See which files matter for a task — and get a receipt that proves it.</p>
+    <p class="lede">Horos reads a codebase, works out the <em>minimal</em> set of files that matter
+    for a given task, and produces a signed receipt of exactly what it selected. No account, no signup —
+    paste a public GitHub repo, describe the task, and run it.</p>
+  </header>
+
+  <ol class="steps">
+    <li><b>Step 1.</b> Paste a public GitHub repo URL. (Or paste a Horos <code>graph.json</code> instead.)</li>
+    <li><b>Step 2.</b> Describe your task in plain language.</li>
+    <li><b>Step 3.</b> Click Run — you'll get the selected files and a downloadable receipt.</li>
+  </ol>
+
+  <section class="card">
+    <label class="fieldlabel" for="repo-input">GitHub repository URL</label>
+    <input type="text" id="repo-input" spellcheck="false"
+      placeholder="https://github.com/owner/name">
+    <div class="ref-row">
+      <label class="fieldlabel small" for="ref-input">Branch or commit <span class="dim">(optional)</span></label>
+      <input type="text" id="ref-input" spellcheck="false" placeholder="main">
+    </div>
+
+    <button type="button" class="disclosure" id="toggle-graph" aria-expanded="false">
+      ▸ Advanced: paste a graph.json instead of a repo
+    </button>
+    <div class="graph-wrap" id="graph-wrap" hidden>
+      <label class="fieldlabel small" for="graph-input">Horos graph JSON</label>
+      <textarea id="graph-input" spellcheck="false"
+        placeholder='{ "version": "context-graph-v0", "nodes": [ ... ], "edges": [ ... ] }'></textarea>
+      <p class="hint">If both a repo URL and a graph are filled in, the graph wins.</p>
+    </div>
+
+    <label class="fieldlabel" for="task-input">Your task</label>
+    <textarea id="task-input" spellcheck="false"
+      placeholder="Fix the bug where expired sessions aren't rejected on refresh."></textarea>
+
+    <div class="run-row">
+      <button type="button" class="run" id="run-btn">Run Horos</button>
+      <span class="status" id="status"></span>
+    </div>
+  </section>
+
+  <section class="results" id="results" hidden>
+    <div class="rule"><span>Selected files</span></div>
+    <pre id="result-output"></pre>
+    <div class="rule"><span>Signed receipt</span>
+      <button type="button" class="download" id="download-btn">Download receipt.json</button>
+    </div>
+    <pre id="receipt-output"></pre>
+    <p class="verify-note">Verify this receipt yourself with the Horos CLI:
+      <code>horos verify receipt.json</code>. The signature binds the repo ref, the graph,
+      your task, and the selected set together — change any of them and verification fails.</p>
+  </section>
+
+  <footer>
+    <a href="https://github.com/holeyfield33-art/horos">Source on GitHub</a>
+    <span class="dim">Public repos only · no data is stored · part of the Aletheia stack</span>
+  </footer>
+</div>
+<script src="./app.js"></script>
+</body>
+</html>
