@@ -26,15 +26,34 @@ import { dirname, resolve } from "node:path";
 const here = dirname(fileURLToPath(import.meta.url));
 const distRoot = process.env.HOROS_DIST ?? resolve(here, "../dist");
 
-// Deterministic receipt inputs — identical to the parity harness.
-const SEED = "00".repeat(32);
+// Deterministic receipt inputs — identical to the parity harness. The SEED is
+// NOT hardcoded: the signing identity is derived from HOROS_KEY_SEED so the live
+// service signs with the operator's real key, never a forgeable default.
 const TIMESTAMP = "2026-06-21T00:00:00.000Z";
 const TASK_ID = "00000000-0000-0000-0000-000000000000";
 const TASK_CLASS = "feature";
 
+const HEX64 = /^[0-9a-fA-F]{64}$/;
+
 function emitFail(error, field, detail) {
   process.stdout.write(JSON.stringify({ ok: false, error, field: field ?? null, detail: detail ?? null }));
   process.exit(1);
+}
+
+/**
+ * The Ed25519 signing seed, read from HOROS_KEY_SEED (32 bytes = 64 hex chars).
+ * A missing or malformed seed is a hard failure — the runner refuses to sign
+ * with a default identity, which would make every receipt forgeable.
+ */
+function requireSeed() {
+  const seed = process.env.HOROS_KEY_SEED;
+  if (seed === undefined || seed === "") {
+    emitFail("signing_key_unset", "HOROS_KEY_SEED", "HOROS_KEY_SEED is required; refusing to sign with a default identity");
+  }
+  if (!HEX64.test(seed)) {
+    emitFail("signing_key_invalid", "HOROS_KEY_SEED", "HOROS_KEY_SEED must be exactly 64 hex characters (32 bytes)");
+  }
+  return seed;
 }
 
 async function main() {
@@ -71,8 +90,9 @@ async function main() {
   const config = DEFAULT_SELECTOR_CONFIG;
   const selectionResult = selectContext({ graph: artifact, task, config });
 
-  // 3. Build + sign a deterministic receipt.
-  const privateKey = ed25519PrivateKeyFromSeed(SEED);
+  // 3. Build + sign a deterministic receipt. The seed comes from the
+  //    environment (validated up front); no default identity is ever used.
+  const privateKey = ed25519PrivateKeyFromSeed(requireSeed());
   const receipt = buildReceipt({
     selectionResult,
     repository: {

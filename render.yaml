@@ -16,5 +16,10 @@ services:
       # Read-only GitHub token (contents scope) for private clones. Secret; do not sync.
       - key: GITHUB_TOKEN
         sync: false
+      # Ed25519 signing seed (32 bytes = 64 hex chars). The server derives its
+      # receipt-signing identity from this; generate it once and set it here.
+      # Secret; never commit a value and never sync. See docs/KEY-MANAGEMENT.md.
+      - key: HOROS_KEY_SEED
+        sync: false
       # Render injects PORT automatically; the server reads it. Resource caps may be
       # tuned here if the plan's limits differ from the defaults (see DECISIONS-mcp.md).

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
@@ -112,10 +113,33 @@ def require_secret() -> str:
     return secret
 
 
+_HEX64 = re.compile(r"^[0-9a-fA-F]{64}$")
+
+
+def require_key_seed() -> str:
+    """Read the Ed25519 signing seed from the env; missing/malformed => hard fail.
+
+    Mirrors the HOROS_SERVER_SECRET posture: the server refuses to start without
+    a real signing identity, so no receipt is ever signed with a forgeable
+    default key. The router runner subprocess inherits this via ``os.environ``.
+    """
+    seed = os.environ.get("HOROS_KEY_SEED")
+    if not seed:
+        raise RuntimeError(
+            "HOROS_KEY_SEED is required; refusing to start without a signing identity"
+        )
+    if not _HEX64.match(seed):
+        raise RuntimeError(
+            "HOROS_KEY_SEED must be exactly 64 hex characters (32 bytes)"
+        )
+    return seed
+
+
 def main() -> None:
     import uvicorn
 
     secret = require_secret()
+    require_key_seed()  # hard-fail before binding if no signing identity is set
     port = int(os.environ.get("PORT", str(DEFAULT_PORT)))
     mcp = build_mcp(host="0.0.0.0", port=port)
     app = build_app(mcp, secret)
