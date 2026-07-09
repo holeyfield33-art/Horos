@@ -20,9 +20,12 @@ import re
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
+from starlette.applications import Starlette
+from starlette.routing import Mount, Route
 from starlette.types import ASGIApp
 
 from .auth import BearerAuthMiddleware
+from .public import PUBLIC_ROUTE_PATH, public_route
 from .router import RouteError, route_context as _route_context
 from .verifier import verify_receipt as _verify_receipt
 from .workspace import CloneError
@@ -99,8 +102,23 @@ def build_mcp(host: str = "0.0.0.0", port: int = DEFAULT_PORT) -> FastMCP:
 
 
 def build_app(mcp: FastMCP, secret: str) -> ASGIApp:
-    """Wrap the streamable-HTTP Starlette app with bearer auth (SPEC §8)."""
-    return BearerAuthMiddleware(mcp.streamable_http_app(), secret)
+    """Wrap the app with bearer auth (SPEC §8), carving out ``/public/route``.
+
+    The streamable-HTTP MCP app stays intact (its lifespan starts the session
+    manager); it is mounted under a thin Starlette app that also serves the
+    unauthenticated public endpoint. The MCP app's lifespan is threaded through
+    so mounting does not disable it. The bearer middleware then wraps everything,
+    with ``/public/route`` in its bypass set (auth handled per-endpoint there).
+    """
+    mcp_app = mcp.streamable_http_app()
+    combined = Starlette(
+        routes=[
+            Route(PUBLIC_ROUTE_PATH, public_route, methods=["POST"]),
+            Mount("/", app=mcp_app),
+        ],
+        lifespan=lambda _app: mcp_app.router.lifespan_context(mcp_app),
+    )
+    return BearerAuthMiddleware(combined, secret, bypass_paths={PUBLIC_ROUTE_PATH})
 
 
 def require_secret() -> str:

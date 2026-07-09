@@ -315,6 +315,22 @@ def _run_router(graph_path: Path, task: str, manual_include: list[str]) -> dict:
             pass
 
 
+def route_graph(graph: dict, task: str, manual_include: list[str] | None = None) -> dict:
+    """Route a pre-built graph artifact through the runner — no clone, no generate.
+
+    This is the graph-fallback path: the caller supplies a context-graph-v0
+    artifact directly and it is fed straight to ``router_runner.mjs``, converging
+    on the exact same deterministic signing step as the clone→generate path.
+    Returns the raw runner result (``full_receipt``, ``selection``, ``exclusions``,
+    ``coverage``, …). Raises RouteError on any clean failure.
+    """
+    manual_include = list(manual_include or [])
+    with tempfile.TemporaryDirectory(prefix="horos-graph-") as gtmp:
+        graph_path = Path(gtmp) / "graph.json"
+        graph_path.write_text(json.dumps(graph), encoding="utf-8")
+        return _run_router(graph_path, task, manual_include)
+
+
 def _shape_response(
     commit_sha: str,
     router: dict,
@@ -368,6 +384,8 @@ def route_context(
     config: str = "horos.json",
     manual_include: list[str] | None = None,
     include_artifacts: bool = False,
+    *,
+    use_token: bool = True,
 ) -> dict:
     """Run the full clone→generate→route chain and return the §3 response.
 
@@ -389,7 +407,7 @@ def route_context(
             raise RouteError("invalid_input", f"manual_include path must be relative, not absolute")
         if ".." in Path(_p).parts:
             raise RouteError("invalid_input", f"manual_include path must not contain '..'")
-    with clone_repo(repo, ref) as ws:
+    with clone_repo(repo, ref, use_token=use_token) as ws:
         language = _detect_language(ws.workspace_path)
         config_synthesized = False
         if language == "typescript":
