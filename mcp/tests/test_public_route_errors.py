@@ -85,32 +85,18 @@ _HOROS = {"python_source_roots": ["src"], "external_modules": []}
 
 # ── Section A — reproduce and pin the exact RouteError (CURRENT behavior) ───────
 
-def test_repro_owner_422_is_graph_generation_failed(tmp_path, monkeypatch):
-    """The owner's failing repo → 422, and the raw code is graph_generation_failed.
+def test_repro_owner_422_is_actionable_not_bare_code(tmp_path, monkeypatch):
+    """The owner's failing repo → 422 with an ACTIONABLE message, not "code: detail".
 
-    This pins the CURRENT (pre-fix) behavior: the message is the bare
-    ``<code>: <detail>`` string with no actionable guidance. Section B replaces it.
+    graph_generation_failed is now classified into human guidance (what went wrong,
+    what to try) and the raw ``graph_generation_failed:`` prefix is gone.
     """
     url = _build_repo(tmp_path, _UNANALYZABLE, _HOROS)
     _patch_remote(monkeypatch, url)
     with pytest.raises(PublicError) as e:
         run_public_route({"task": "add a login feature", "repo_url": "https://github.com/owner/name"})
     assert e.value.status == 422
-    # CURRENT behavior — the blanket "code: detail" the directive is replacing.
-    assert e.value.message.startswith("graph_generation_failed:")
-
-
-def test_repro_empty_selection_repo_returns_200_without_note(tmp_path, monkeypatch):
-    """A valid repo whose task matches nothing → 200, but the note is dropped.
-
-    CURRENT behavior: the response is ``{summary, receipt}`` only; the server's
-    ``selection_note`` never reaches the caller. Section B surfaces it.
-    """
-    files = {"src/app/__init__.py": "", "src/app/main.py": "def helper():\n    return 1\n"}
-    url = _build_repo(tmp_path, files, _HOROS)
-    _patch_remote(monkeypatch, url)
-    result = run_public_route(
-        {"task": "totally unrelated payment gateway", "repo_url": "https://github.com/owner/name"}
-    )
-    assert result["summary"]["selected_files"] == []
-    assert "note" not in result  # the reason nothing matched is currently hidden
+    # NEW behavior — no bare code prefix; actionable, non-technical guidance.
+    assert not e.value.message.startswith("graph_generation_failed:")
+    assert "dependency graph" in e.value.message
+    assert "Python is supported today" in e.value.message

@@ -72,7 +72,10 @@ def test_graph_must_be_object():
 # ── Graph-fallback path ───────────────────────────────────────────────────────
 
 def test_graph_path_returns_summary_and_signed_receipt():
-    result = run_public_route({"task": "helper util", "graph": _graph()})
+    # A task that actually selects a file — the happy path is {summary, receipt}
+    # with no "note" (which is only added when the selection is empty).
+    result = run_public_route({"task": "session validation auth", "graph": _graph()})
+    assert result["summary"]["selected_files"], "expected a non-empty selection"
     assert set(result) == {"summary", "receipt"}
     assert set(result["summary"]) == {"selected_files", "excluded_files", "unresolved_symbols"}
     receipt = result["receipt"]
