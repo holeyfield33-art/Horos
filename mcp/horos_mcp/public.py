@@ -103,9 +103,24 @@ class PublicError(Exception):
 # CloneError/RouteError codes that mean "the input is too big/slow" → 413.
 _CAP_CODES = {"too_many_files", "workspace_too_large"}
 
+# A valid repo/graph that simply matched nothing is NOT an error — it is a 200
+# with an empty selection. This note tells a non-technical caller what to do next.
+_EMPTY_SELECTION_NOTE = (
+    "No files matched this task. Try a more specific task (name a feature, file, "
+    "or subsystem), or confirm the repository has source files Horos can analyze "
+    "(Python is supported today)."
+)
 
-def _shape(selection: list, exclusions: list, unresolved: list, receipt: dict) -> dict:
-    return {
+
+def _shape(
+    selection: list,
+    exclusions: list,
+    unresolved: list,
+    receipt: dict,
+    *,
+    note: str | None = None,
+) -> dict:
+    out: dict = {
         "summary": {
             "selected_files": [s["path"] for s in selection],
             "excluded_files": [e["path"] for e in exclusions],
@@ -113,6 +128,17 @@ def _shape(selection: list, exclusions: list, unresolved: list, receipt: dict) -
         },
         "receipt": receipt,
     }
+    # Only present on the empty-selection path — the happy path stays {summary, receipt}.
+    if note:
+        out["note"] = note
+    return out
+
+
+def _empty_selection_note(upstream: str | None) -> str:
+    """Compose the caller-facing empty-selection note, folding in any server hint."""
+    if upstream:
+        return f"{_EMPTY_SELECTION_NOTE} ({upstream})"
+    return _EMPTY_SELECTION_NOTE
 
 
 def run_public_route(payload: object) -> dict:
@@ -141,11 +167,16 @@ def run_public_route(payload: object) -> dict:
             if not isinstance(graph, dict):
                 raise PublicError(400, "'graph' must be a JSON object (context-graph-v0)")
             router = route_graph(graph, task)
+            selection = router["selection"]
+            # Parity with the repo path: an empty selection is a benign 200 + note,
+            # never a 422. (route_graph does not raise on empty — it returns cleanly.)
+            note = None if selection else _empty_selection_note(None)
             return _shape(
-                router["selection"],
+                selection,
                 router["exclusions"],
                 router["coverage"]["unresolved_symbols"],
                 router["full_receipt"],
+                note=note,
             )
 
         # repo_url path — tokenless clone → generate → route.
@@ -168,7 +199,11 @@ def run_public_route(payload: object) -> dict:
         unresolved = []
         if resp.get("unresolved_signal"):
             unresolved = resp["unresolved_signal"].get("unresolved_symbols", [])
-        return _shape(resp["selected_files"], resp["exclusions"], unresolved, receipt)
+        selected = resp["selected_files"]
+        # Empty selection on a valid repo is a 200 with a note, not a 422. Fold in
+        # the server's own selection_note (why nothing matched) when it is present.
+        note = _empty_selection_note(resp.get("selection_note")) if not selected else None
+        return _shape(selected, resp["exclusions"], unresolved, receipt, note=note)
 
     except CloneError as exc:
         if exc.code in _CAP_CODES:
@@ -183,7 +218,31 @@ def run_public_route(payload: object) -> dict:
             ) from None
         raise PublicError(400, exc.detail) from None
     except RouteError as exc:
-        raise PublicError(422, f"{exc.code}: {exc.detail}") from None
+        # Classify the routing-result failure into something a non-technical caller
+        # can act on. These are the ACTUAL codes route_context/route_graph raise —
+        # an empty selection is NOT here (it returns 200 with a note, above).
+        if exc.code == "graph_generation_failed":
+            raise PublicError(
+                422,
+                "Horos couldn't build a dependency graph for this repository. Its "
+                "language may not be supported yet (Python is supported today), or "
+                "some source files couldn't be parsed. Try a Python repository, or "
+                "check the repo for the reported source error.",
+            ) from None
+        if exc.code == "config_not_found":
+            raise PublicError(
+                422,
+                "Horos couldn't find a usable configuration for this repository. "
+                "Confirm it has analyzable source files (Python is supported today).",
+            ) from None
+        if exc.code in {"router_failed", "verify_failed"}:
+            raise PublicError(
+                422,
+                "Horos couldn't route this repository into a verified selection: "
+                f"{exc.detail}",
+            ) from None
+        # invalid_input and any future code — still unprocessable, but say what and why.
+        raise PublicError(422, f"could not route: {exc.detail}") from None
 
 
 # ── ASGI handler ──────────────────────────────────────────────────────────────
