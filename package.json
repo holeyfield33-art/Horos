@@ -4,6 +4,7 @@
   "files": [
   "dist",
   "scripts",
+  "!scripts/workspace_eval.py",
   "README.md",
   "LICENSE"
 ],
@@ -41,7 +42,8 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:context-pack": "node --test test/workspace-context.node.mjs"
   },
   "dependencies": {
     "typescript": "^5.8.2"

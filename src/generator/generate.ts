@@ -9,8 +9,8 @@
  * validated through the PR 1 loader before return, so generator and router agree.
  */
 
-import { readFileSync } from "node:fs";
-import { relative, resolve } from "node:path";
+import { readFileSync, realpathSync } from "node:fs";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 
 import ts from "typescript";
 
@@ -154,10 +154,15 @@ export function generateGraph(options: GenerateOptions): LoadedGraph {
   const compilerOptions = parsed.options;
   const aliasPrefixes = aliasPrefixesFrom(compilerOptions);
 
+  const realRoot = realpathSync(projectRoot);
+  const withinRoot = (file: string): boolean => {
+    const rel = relative(realRoot, realpathSync(file));
+    return rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
+  };
   const sourceFiles = parsed.fileNames
     .map((f) => resolve(f))
-    .filter((f) => SOURCE_EXT.test(f) && !f.includes("/node_modules/") && !/\.d\.ts$/.test(f))
-    .filter((f) => toPosix(f).startsWith(toPosix(projectRoot)))
+    .filter((f) => SOURCE_EXT.test(f) && !toPosix(f).includes("/node_modules/") && !/\.d\.[cm]?ts$/.test(f))
+    .filter(withinRoot)
     .sort();
   const projectFileSet = new Set(sourceFiles.map((f) => relKey(projectRoot, f)));
 
@@ -166,13 +171,14 @@ export function generateGraph(options: GenerateOptions): LoadedGraph {
 
   for (const absFile of sourceFiles) {
     const sourceRel = relKey(projectRoot, absFile);
-    const text = readFileSync(absFile, "utf8");
+    const bytes = readFileSync(absFile);
+    const text = bytes.toString("utf8");
     const sf = ts.createSourceFile(absFile, text, ts.ScriptTarget.Latest, true);
 
     const node: RawNode = {
       file_path: sourceRel,
       language: languageOf(absFile),
-      content_hash: sha256(readFileSync(absFile)),
+      content_hash: sha256(bytes),
       token_count: countTokens(text),
     };
     const exports = collectExports(sf);

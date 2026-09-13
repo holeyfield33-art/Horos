@@ -118,6 +118,8 @@ const ED25519_SIGNATURE_HEX = /^[0-9a-f]{128}$/i;
 
 /** Verify a receipt's Ed25519 signature against its own public key. */
 export function verifyReceiptSignature(receipt: Receipt): boolean {
+  if (receipt === null || typeof receipt !== "object" ||
+      receipt.signature === null || typeof receipt.signature !== "object") return false;
   if (receipt.signature.algorithm !== "Ed25519") return false;
   if (!ED25519_PUBLIC_KEY_HEX.test(receipt.signature.public_key)) return false;
   if (!ED25519_SIGNATURE_HEX.test(receipt.signature.value)) return false;

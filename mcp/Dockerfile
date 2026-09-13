@@ -14,10 +14,10 @@ WORKDIR /build
 COPY package.json package-lock.json tsconfig.json tsconfig.build.json ./
 RUN npm ci
 COPY src ./src
-RUN npm run build && node --input-type=module -e "await import('/build/dist/graph/index.js'); console.log('dist built')"
+RUN npm run build && npm prune --omit=dev && node --input-type=module -e "await import('/build/dist/graph/index.js'); console.log('dist built')"
 
 # ---- final: python runtime + node + generator + server ----
-FROM python:3.11-slim AS final
+FROM python:3.11-slim-bookworm AS final
 
 # git for cloning; libstdc++6/libgcc for the copied node binary; ca-certificates for HTTPS.
 RUN apt-get update \
@@ -40,6 +40,7 @@ RUN pip install --no-cache-dir -r /app/mcp/requirements.txt
 
 # App payload: built router, generator package, MCP server.
 COPY --from=router-build /build/dist /app/dist
+COPY --from=router-build /build/node_modules /app/node_modules
 COPY python/graph-gen-python /app/python/graph-gen-python
 COPY mcp /app/mcp
 
@@ -53,6 +54,7 @@ ENV PYTHONPATH=/app/mcp \
 RUN node --version \
     && PYTHONPATH=/app/python/graph-gen-python python -m graph_gen_python --help >/dev/null \
     && node --input-type=module -e "await import('/app/dist/verify/index.js'); console.log('dist ok')" \
+    && node --input-type=module -e "await import('/app/dist/generator/index.js'); console.log('generator dependencies ok')" \
     && node --check /app/mcp/generate_runner.mjs && echo 'generate_runner ok' \
     && node --check /app/mcp/verify_runner.mjs && echo 'verify_runner ok' \
     && python -c "import asyncio; from horos_mcp.server import build_mcp; \

@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /**
  * `horos` CLI — context-graph generation, routing, and receipt verification.
  *
@@ -18,6 +19,7 @@ import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import type { KeyObject } from "node:crypto";
 import { dirname, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 import {
   generateEd25519KeyPair,
@@ -53,6 +55,7 @@ const VALUE_FLAGS = new Set([
   "--commit",
   "--out",
   "--key",
+  "--trusted-key",
 ]);
 
 const BOOLEAN_FLAGS = new Set(["--json"]);
@@ -293,12 +296,14 @@ function runVerifyCommand(argv: readonly string[]): CliResult {
   try {
     receipt = asReceipt(readJson(receiptPath));
     const repoRoot = flags.options.get("--repo");
+    const expectedPublicKey = flags.options.get("--trusted-key");
     inputs = {
       graph: readJson(graphPath),
       taskText: resolveTask(flags.options),
       config: resolveConfig(flags.options),
       manualInclude: resolveManual(flags.options),
       ...(repoRoot !== undefined ? { repoRoot } : {}),
+      ...(expectedPublicKey !== undefined ? { expectedPublicKey } : {}),
     };
   } catch (error) {
     return { code: 2, lines: [`error: ${(error as Error).message}`] };
@@ -342,7 +347,7 @@ export function run(argv: readonly string[]): CliResult {
 function isMain(): boolean {
   const entry = process.argv[1];
   if (entry === undefined) return false;
-  return import.meta.url === `file://${entry}` || import.meta.url.endsWith(entry);
+  return import.meta.url === pathToFileURL(resolve(entry)).href;
 }
 
 if (isMain()) {

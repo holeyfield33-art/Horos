@@ -17,19 +17,19 @@
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const { loadGraphArtifact } = await import(`${here}/../dist/graph/index.js`);
-const { DEFAULT_SELECTOR_CONFIG } = await import(`${here}/../dist/config/index.js`);
-const { selectContext } = await import(`${here}/../dist/pipeline/index.js`);
-const { buildReceipt } = await import(`${here}/../dist/receipt/index.js`);
+const { loadGraphArtifact } = await import(pathToFileURL(`${here}/../dist/graph/index.js`).href);
+const { DEFAULT_SELECTOR_CONFIG } = await import(pathToFileURL(`${here}/../dist/config/index.js`).href);
+const { selectContext } = await import(pathToFileURL(`${here}/../dist/pipeline/index.js`).href);
+const { buildReceipt } = await import(pathToFileURL(`${here}/../dist/receipt/index.js`).href);
 const {
   generateEd25519KeyPair,
   ed25519PrivateKeyFromSeed,
   ed25519PublicKeyToHex,
   ed25519PublicKeyFromPrivate,
-} = await import(`${here}/../dist/canonical/index.js`);
+} = await import(pathToFileURL(`${here}/../dist/canonical/index.js`).href);
 
 function parseArgs(argv) {
   const positional = [];

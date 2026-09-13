@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
@@ -116,6 +117,9 @@ def main() -> None:
     import uvicorn
 
     secret = require_secret()
+    seed = os.environ.get("HOROS_SIGNING_SEED", "")
+    if not re.fullmatch(r"[0-9a-fA-F]{64}", seed) or seed == "0" * 64:
+        raise RuntimeError("HOROS_SIGNING_SEED must be a private 32-byte hex seed; the public test seed is forbidden")
     port = int(os.environ.get("PORT", str(DEFAULT_PORT)))
     mcp = build_mcp(host="0.0.0.0", port=port)
     app = build_app(mcp, secret)

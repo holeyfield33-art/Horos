@@ -10,11 +10,11 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
 
-import { generateEd25519KeyPair } from "../src/canonical/index.js";
+import { generateEd25519KeyPair, ed25519Sign } from "../src/canonical/index.js";
 import { loadGraphArtifact } from "../src/graph/index.js";
 import { loadSelectorConfig } from "../src/config/index.js";
 import { selectContext } from "../src/pipeline/index.js";
-import { buildReceipt, type Receipt } from "../src/receipt/index.js";
+import { buildReceipt, recomputeReceiptHash, receiptSigningBytes, type Receipt } from "../src/receipt/index.js";
 import { verifyReceipt, type ReplayInputs } from "../src/verify/index.js";
 import { run } from "../src/cli/horos.js";
 
@@ -33,12 +33,12 @@ function makeReceipt(): Receipt {
   const selectionResult = selectContext({ graph: loaded.artifact, task: TASK, config });
   return buildReceipt({
     selectionResult,
-    repository: { origin: "github.com/org/repo", commit_sha: "abc", tree_hash: "def" },
+    repository: { origin: loaded.artifact.metadata.provenance.repository_origin, commit_sha: loaded.artifact.metadata.provenance.commit_sha, tree_hash: loaded.artifact.metadata.provenance.tree_hash },
     taskText: TASK,
     taskClass: "bugfix",
     config,
     graphArtifactHash: loaded.graphArtifactHash,
-    graphGenerator: { name: "typescript", version: "5.8.2" },
+    graphGenerator: { name: "fixture", version: "0.0.0" },
     manualInclude: [],
     prevReceiptHash: null,
     privateKey,
@@ -51,7 +51,38 @@ function goodInputs(): ReplayInputs {
   return { graph: graphJson, taskText: TASK, config, manualInclude: [] };
 }
 
+function resign(receipt: Receipt): Receipt {
+  return { ...receipt, receipt_hash: recomputeReceiptHash(receipt),
+    signature: { ...receipt.signature, value: ed25519Sign(receiptSigningBytes(receipt), privateKey) } };
+}
+
 describe("verifyReceipt (§5.3)", () => {
+  it.each([null, [], {}, { signature: null }])("fails closed on malformed receipt %j", (receipt) => {
+    expect(verifyReceipt(receipt, goodInputs())).toMatchObject({ pass: false, field: "receipt_schema" });
+  });
+
+  it("rejects validly signed but false repository provenance", () => {
+    const receipt = makeReceipt();
+    const altered = resign({ ...receipt, repository: { ...receipt.repository, commit_sha: "forged" } });
+    expect(verifyReceipt(altered, goodInputs())).toMatchObject({ pass: false, field: "repository.commit_sha" });
+  });
+
+  it("rejects validly signed but false generator provenance", () => {
+    const receipt = makeReceipt();
+    const altered = resign({ ...receipt, graph: { ...receipt.graph, graph_generator: { name: "forged", version: "0" } } });
+    expect(verifyReceipt(altered, goodInputs())).toMatchObject({ pass: false, field: "graph.graph_generator.name" });
+  });
+
+  it("checks the manual list itself against the replay inputs", () => {
+    const receipt = resign({ ...makeReceipt(), manual_include: ["unrecorded.ts"] });
+    expect(verifyReceipt(receipt, goodInputs())).toMatchObject({ pass: false, field: "manual_include_hash" });
+  });
+
+  it("pins the trusted issuer when requested", () => {
+    const receipt = makeReceipt();
+    expect(verifyReceipt(receipt, { ...goodInputs(), expectedPublicKey: receipt.signature.public_key })).toEqual({ pass: true });
+    expect(verifyReceipt(receipt, { ...goodInputs(), expectedPublicKey: "ff".repeat(32) })).toMatchObject({ pass: false, field: "signature.public_key" });
+  });
   it("a freshly built receipt replays (acceptance: no unreplayable receipt)", () => {
     expect(verifyReceipt(makeReceipt(), goodInputs())).toEqual({ pass: true });
   });
@@ -115,12 +146,12 @@ describe("content re-verification through verify (§6.4 + §5.3)", () => {
     });
     return buildReceipt({
       selectionResult,
-      repository: { origin: "x", commit_sha: "c", tree_hash: "t" },
+      repository: { origin: contentLoaded.artifact.metadata.provenance.repository_origin, commit_sha: contentLoaded.artifact.metadata.provenance.commit_sha, tree_hash: contentLoaded.artifact.metadata.provenance.tree_hash },
       taskText: contentTask,
       taskClass: "audit",
       config,
       graphArtifactHash: contentLoaded.graphArtifactHash,
-      graphGenerator: { name: "typescript", version: "5.8.2" },
+      graphGenerator: { name: "fixture", version: "0.0.0" },
       manualInclude: [],
       prevReceiptHash: null,
       privateKey,

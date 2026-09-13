@@ -6,6 +6,10 @@ dist/
 # Python
 __pycache__/
 *.pyc
+.venv*/
+.local/
+.env
+.env.*
 
 # Local secrets — never commit
 env/

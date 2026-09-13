@@ -130,6 +130,17 @@ export function loadSelectorConfig(override?: SelectorConfigOverride): SelectorC
   if (override === undefined) return base;
 
   const rs = override.ranking_strategy;
+  for (const key of ["max_depth_hops", "max_files", "max_tokens"] as const) {
+    const value = rs?.[key];
+    if (value !== undefined && (!Number.isSafeInteger(value) || value < 0)) {
+      throw new SchemaValidationError(`ranking_strategy.${key}: expected a non-negative safe integer`);
+    }
+  }
+  for (const [key, value] of Object.entries(rs?.edge_weights ?? {})) {
+    if (!Number.isFinite(value) || value < 0) {
+      throw new SchemaValidationError(`ranking_strategy.edge_weights.${key}: expected a non-negative finite number`);
+    }
+  }
   return {
     version: override.version ?? base.version,
     task_normalization: { ...base.task_normalization, ...override.task_normalization },
@@ -167,6 +178,11 @@ function checkString(value: unknown, path: string): string {
 export function parseSelectorConfigOverride(input: unknown): SelectorConfigOverride {
   const root = isPlainObject(input) ? input : null;
   if (root === null) throw new SchemaValidationError("<root>: expected an object");
+  for (const key of Object.keys(root)) {
+    if (!["version", "ranking_strategy"].includes(key)) {
+      throw new SchemaValidationError(`${key}: unsupported selector override field`);
+    }
+  }
 
   const override: {
     version?: string;
@@ -182,6 +198,11 @@ export function parseSelectorConfigOverride(input: unknown): SelectorConfigOverr
       throw new SchemaValidationError("ranking_strategy: expected an object");
     }
     const rs = root["ranking_strategy"];
+    for (const key of Object.keys(rs)) {
+      if (!["edge_weights", "max_depth_hops", "max_files", "max_tokens"].includes(key)) {
+        throw new SchemaValidationError(`ranking_strategy.${key}: unknown field`);
+      }
+    }
     const parsed: {
       edge_weights?: Partial<EdgeWeights>;
       max_depth_hops?: number;

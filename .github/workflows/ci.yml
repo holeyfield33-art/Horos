@@ -29,6 +29,8 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - run: npm run test:context-pack
+      - run: npm audit --audit-level=high
 
   python:
     name: Python

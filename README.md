@@ -85,6 +85,21 @@ node dist/cli/horos.js verify receipt.json \
 The Python generator produces the same `context-graph-v0` artifact as the TS
 generator. The TS router and `horos verify` CLI consume both identically.
 
+### Strict local context delivery
+
+After generating `graph.json`, create a source-verified context pack with a hard
+cap over the complete serialized output:
+
+```sh
+node scripts/workspace_context.mjs --graph graph.json --repo . \
+  --task-file task.txt --out context.json --max-bytes 65536
+```
+
+The private-pilot profile defaults to two graph hops, 12 files, and 12,000 graph
+lexical tokens. The final 65,536-byte cap includes source, receipt, metadata, and
+JSON escaping. Lexical counts are not presented as model-token counts. A partial
+pack includes warnings and exclusions that must be reviewed.
+
 **Requirements:** Python >= 3.11 (stdlib only — no pip installs), plus the Horos
 Node build from above.
 
@@ -257,6 +272,11 @@ The Horos MCP server is hosted live for public testing.
 * **Endpoint:** `https://horos.onrender.com/mcp`
 * **Authentication:** Token-based. Currently, access is restricted to ensure fair resource use. To request an access token, please open a GitHub Issue with the label `question`.
 
+**Audit gate:** do not treat hosted receipt signatures as trusted until the
+2026-09-12 signing-key fix is deployed, a new private seed is configured, and its
+public key is distributed independently. The audited working tree refuses the
+documented public test seed.
+
 ---
 
 ## Key management
@@ -274,6 +294,7 @@ npm install
 npm run typecheck   # strict tsc, no emit
 npm test            # vitest: all TS suites
 npm run build       # emit dist/
+npm run test:context-pack  # source/hash/complete-output budget checks
 
 # Python generator tests
 cd python/graph-gen-python

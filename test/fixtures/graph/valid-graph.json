@@ -41,6 +41,13 @@
       "content_hash": "2222",
       "token_count": 200,
       "exports": ["createSession", "validateSession"]
+    },
+    "src/router.ts": {
+      "file_path": "src/router.ts",
+      "language": "ts",
+      "content_hash": "3333",
+      "token_count": 50,
+      "exports": ["route"]
     }
   },
   "edges": [

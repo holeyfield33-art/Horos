@@ -28,6 +28,7 @@ import { loadGraphArtifact } from "../graph/index.js";
 import { selectContext, verifySelectionContent } from "../pipeline/index.js";
 import { recomputeReceiptHash, verifyReceiptSignature } from "../receipt/index.js";
 import type { Receipt } from "../receipt/index.js";
+import { validateReceipt } from "../receipt/validate.js";
 
 export type ReplayInputs = {
   /** Parsed graph artifact (validated and hashed during verification). */
@@ -37,6 +38,8 @@ export type ReplayInputs = {
   readonly manualInclude: readonly string[];
   /** Repo root for content re-verification (§6.4); omit to skip that gate. */
   readonly repoRoot?: string;
+  /** Pin the trusted issuer; otherwise verification establishes self-consistency only. */
+  readonly expectedPublicKey?: string;
 };
 
 export type VerifyOutcome =
@@ -48,7 +51,20 @@ const fail = (field: string, detail: string): VerifyOutcome => ({ pass: false, f
 const sameCanonical = (a: CanonicalValue, b: CanonicalValue): boolean =>
   cjsonString(a) === cjsonString(b);
 
-export function verifyReceipt(receipt: Receipt, inputs: ReplayInputs): VerifyOutcome {
+export function verifyReceipt(value: unknown, inputs: ReplayInputs): VerifyOutcome {
+  try {
+    validateReceipt(value);
+    return verifyValidatedReceipt(value, inputs);
+  } catch (error) {
+    if (error instanceof SchemaValidationError || error instanceof TypeError ||
+        (error instanceof Error && error.name === "CanonicalizationError")) {
+      return fail("receipt_schema", error.message);
+    }
+    throw error;
+  }
+}
+
+function verifyValidatedReceipt(receipt: Receipt, inputs: ReplayInputs): VerifyOutcome {
   // 1. Receipt self-consistency: stored receipt_hash matches its own payload.
   if (recomputeReceiptHash(receipt) !== receipt.receipt_hash) {
     return fail("receipt_hash", "stored receipt_hash does not match the receipt payload");
@@ -57,6 +73,10 @@ export function verifyReceipt(receipt: Receipt, inputs: ReplayInputs): VerifyOut
   // 2. Signature.
   if (!verifyReceiptSignature(receipt)) {
     return fail("signature", "Ed25519 signature does not verify");
+  }
+  if (inputs.expectedPublicKey !== undefined &&
+      receipt.signature.public_key.toLowerCase() !== inputs.expectedPublicKey.toLowerCase()) {
+    return fail("signature.public_key", "receipt signer does not match the trusted public key");
   }
 
   // 3. Provenance inputs recompute to the recorded hashes.
@@ -75,6 +95,21 @@ export function verifyReceipt(receipt: Receipt, inputs: ReplayInputs): VerifyOut
   if (loadedHash !== receipt.graph.graph_artifact_hash) {
     return fail("graph.graph_artifact_hash", "supplied graph does not match the recorded hash");
   }
+  const provenance = artifact.metadata.provenance;
+  for (const [field, expected] of [
+    ["origin", provenance.repository_origin],
+    ["commit_sha", provenance.commit_sha],
+    ["tree_hash", provenance.tree_hash],
+  ] as const) {
+    if (receipt.repository[field] !== expected) {
+      return fail(`repository.${field}`, "receipt provenance differs from the supplied graph");
+    }
+  }
+  for (const field of ["name", "version"] as const) {
+    if (receipt.graph.graph_generator[field] !== artifact.metadata.generator[field]) {
+      return fail(`graph.graph_generator.${field}`, "receipt generator differs from the supplied graph");
+    }
+  }
   if (taskHash(inputs.taskText) !== receipt.task.task_hash) {
     return fail("task.task_hash", "supplied task does not match the recorded task_hash");
   }
@@ -88,6 +123,9 @@ export function verifyReceipt(receipt: Receipt, inputs: ReplayInputs): VerifyOut
     return fail("selector.weight_policy_hash", "supplied weight policy does not match");
   }
   const manual = byteSorted(inputs.manualInclude);
+  if (!sameCanonical(manual, receipt.manual_include)) {
+    return fail("manual_include_hash", "supplied manual includes differ from the receipt list");
+  }
   if (manualIncludeHash(manual) !== receipt.manual_include_hash) {
     return fail("manual_include_hash", "supplied manual includes do not match");
   }

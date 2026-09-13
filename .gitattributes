@@ -1,0 +1,2 @@
+# Canonical test vectors hash raw bytes; checkout must not rewrite LF to CRLF.
+test/fixtures/content/** text eol=lf

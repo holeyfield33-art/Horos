@@ -323,13 +323,16 @@ def _shape_response(
     artifact: dict | None = None,
     config_synthesized: bool = False,
 ) -> dict:
-    # selection_status is driven by module_not_found (genuinely unlisted deps), not the
-    # generator's raw `completeness` flag — which is `partial` for any external/stdlib
-    # boundary even when every dep is listed. Listed externals/stdlib => complete;
-    # an unlisted third-party import => partial. (DECISIONS-mcp.md.)
-    partial = bool(mnf)
+    # Listed external boundaries are intentional. Every other unresolved edge is
+    # a coverage gap, including aliases, dynamic imports and unsupported syntax.
+    unresolved = [edge for edge in (artifact or {}).get("edges", [])
+                  if edge.get("resolved") is False
+                  and edge.get("resolution_error") != "external_boundary"]
     receipt = router["receipt"]
     selection = router["selection"]
+    truncated = any(e.get("reason_code") in {"BUDGET_TRUNCATED", "DEPTH_EXCEEDED"}
+                    for e in router["exclusions"])
+    partial = bool(mnf or unresolved or truncated or not selection)
     response: dict = {
         "repo_commit": commit_sha,
         "selection_status": "partial" if partial else "complete",
@@ -352,6 +355,7 @@ def _shape_response(
             "warning": _PARTIAL_WARNING,
             "unresolved_symbols": list(router["coverage"]["unresolved_symbols"]),
             "module_not_found": mnf,
+            "resolution_errors": sorted({str(edge.get("resolution_error")) for edge in unresolved}),
         }
         response["suggested_external_modules"] = mnf
     if config_synthesized:

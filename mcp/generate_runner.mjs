@@ -23,11 +23,11 @@
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, resolve } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const distRoot = process.env.HOROS_DIST ?? resolve(here, "../dist");
+const distRoot = pathToFileURL(resolve(process.env.HOROS_DIST ?? resolve(here, "../dist"))).href;
 
 function emitFail(error) {
   process.stdout.write(JSON.stringify({ ok: false, error: String(error) }));

@@ -20,14 +20,14 @@
  */
 
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, resolve } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const distRoot = process.env.HOROS_DIST ?? resolve(here, "../dist");
+const distRoot = pathToFileURL(resolve(process.env.HOROS_DIST ?? resolve(here, "../dist"))).href;
 
 // Deterministic receipt inputs — identical to the parity harness.
-const SEED = "00".repeat(32);
+const SEED = process.env.HOROS_SIGNING_SEED;
 const TIMESTAMP = "2026-06-21T00:00:00.000Z";
 const TASK_ID = "00000000-0000-0000-0000-000000000000";
 const TASK_CLASS = "feature";
@@ -72,6 +72,9 @@ async function main() {
   const selectionResult = selectContext({ graph: artifact, task, config });
 
   // 3. Build + sign a deterministic receipt.
+  if (typeof SEED !== "string" || !/^[0-9a-f]{64}$/i.test(SEED) || /^0{64}$/.test(SEED)) {
+    emitFail("router_failed", "signing_key", "HOROS_SIGNING_SEED must be a private 32-byte hex seed; the public test seed is forbidden");
+  }
   const privateKey = ed25519PrivateKeyFromSeed(SEED);
   const receipt = buildReceipt({
     selectionResult,

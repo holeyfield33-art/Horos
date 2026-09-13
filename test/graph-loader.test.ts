@@ -3,6 +3,7 @@
  */
 
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
 
 import {
@@ -19,7 +20,7 @@ import {
 } from "../src/errors.js";
 
 const fixtureUrl = new URL("./fixtures/graph/valid-graph.json", import.meta.url);
-const fixturePath = fixtureUrl.pathname;
+const fixturePath = fileURLToPath(fixtureUrl);
 const HEAD = "4b825dc642cb6eb9a00b213b2e3fc7e42d99217c";
 
 function validGraph(): Record<string, unknown> {
@@ -108,7 +109,25 @@ describe("schema validation (§4)", () => {
 
   it("rejects invalid JSON from a file", () => {
     const badPath = new URL("./fixtures/graph/not-json.txt", import.meta.url);
-    expect(() => readGraphArtifactFile(badPath.pathname)).toThrow(SchemaValidationError);
-    expect(() => readGraphArtifactFile(badPath.pathname)).toThrow(/not valid JSON/);
+    expect(() => readGraphArtifactFile(fileURLToPath(badPath))).toThrow(SchemaValidationError);
+    expect(() => readGraphArtifactFile(fileURLToPath(badPath))).toThrow(/not valid JSON/);
+  });
+
+  it.each([-1, 0.5, Number.MAX_SAFE_INTEGER + 1])("rejects unsafe token count %s", (count) => {
+    const g = validGraph();
+    (g["nodes"] as Record<string, Record<string, unknown>>)["src/index.ts"]!["token_count"] = count;
+    expect(() => loadGraphArtifact(g)).toThrow(/non-negative safe integer/);
+  });
+
+  it.each(["../secret.ts", "/absolute.ts", "C:/secret.ts", "src\\secret.ts", "src/../secret.ts"])("rejects unsafe node path %s", (key) => {
+    const g = validGraph();
+    (g["nodes"] as Record<string, unknown>)[key] = { content_hash: "a", token_count: 1 };
+    expect(() => loadGraphArtifact(g)).toThrow(/repository-relative/);
+  });
+
+  it("rejects a resolved edge with a missing target", () => {
+    const g = validGraph();
+    (g["edges"] as Array<Record<string, unknown>>)[0]!["target"] = "missing.ts";
+    expect(() => loadGraphArtifact(g)).toThrow(/resolved target is not a graph node/);
   });
 });

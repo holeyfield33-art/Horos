@@ -11,18 +11,19 @@
  */
 
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, resolve } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const distRoot = resolve(here, "../../../../dist");
 
-const { loadGraphArtifact } = await import(`${distRoot}/graph/index.js`);
-const { selectContext } = await import(`${distRoot}/pipeline/index.js`);
-const { buildReceipt } = await import(`${distRoot}/receipt/index.js`);
-const { verifyReceipt } = await import(`${distRoot}/verify/index.js`);
-const { DEFAULT_SELECTOR_CONFIG } = await import(`${distRoot}/config/index.js`);
-const { ed25519PrivateKeyFromSeed } = await import(`${distRoot}/canonical/index.js`);
+const distUrl = pathToFileURL(distRoot).href;
+const { loadGraphArtifact } = await import(`${distUrl}/graph/index.js`);
+const { selectContext } = await import(`${distUrl}/pipeline/index.js`);
+const { buildReceipt } = await import(`${distUrl}/receipt/index.js`);
+const { verifyReceipt } = await import(`${distUrl}/verify/index.js`);
+const { DEFAULT_SELECTOR_CONFIG } = await import(`${distUrl}/config/index.js`);
+const { ed25519PrivateKeyFromSeed } = await import(`${distUrl}/canonical/index.js`);
 
 function main() {
   const graphPath = process.argv[2];

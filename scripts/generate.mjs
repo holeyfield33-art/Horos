@@ -15,10 +15,10 @@
 import { execSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const { generateGraph } = await import(`${here}/../dist/generator/index.js`);
+const { generateGraph } = await import(pathToFileURL(`${here}/../dist/generator/index.js`).href);
 
 function parseArgs(argv) {
   const opts = {};

@@ -71,7 +71,10 @@ function validateSchemaVersion(schema: string): void {
 function validateNode(value: unknown, path: string): void {
   const node = requireObject(value, path);
   requireString(node["content_hash"], `${path}.content_hash`);
-  requireNumber(node["token_count"], `${path}.token_count`);
+  const count = requireNumber(node["token_count"], `${path}.token_count`);
+  if (!Number.isSafeInteger(count) || count < 0) {
+    fail(`${path}.token_count`, "expected a non-negative safe integer");
+  }
   if (node["exports"] !== undefined) {
     if (!Array.isArray(node["exports"])) fail(`${path}.exports`, "expected an array");
     node["exports"].forEach((entry, i) =>
@@ -131,12 +134,24 @@ function validateGraphArtifact(value: unknown): void {
 
   const nodes = requireObject(root["nodes"], "nodes");
   for (const [key, node] of Object.entries(nodes)) {
+    if (!key || /[\\\u0000-\u001f:]/.test(key) || key.startsWith("/") ||
+        key.split("/").some((part) => part === "" || part === "." || part === "..")) {
+      fail(`nodes[${JSON.stringify(key)}]`, "expected a canonical repository-relative POSIX path");
+    }
     validateNode(node, `nodes[${JSON.stringify(key)}]`);
   }
 
   const edges = root["edges"];
   if (!Array.isArray(edges)) fail("edges", "expected an array");
   edges.forEach((edge, i) => validateEdge(edge, `edges[${String(i)}]`));
+  edges.forEach((edge: Record<string, unknown>, i) => {
+    if (!Object.hasOwn(nodes, edge["source"] as string)) {
+      fail(`edges[${String(i)}].source`, "source is not a graph node");
+    }
+    if (edge["resolved"] === true && !Object.hasOwn(nodes, edge["target"] as string)) {
+      fail(`edges[${String(i)}].target`, "resolved target is not a graph node");
+    }
+  });
 }
 
 /** Validate and load a parsed graph artifact, computing its canonical hash. */

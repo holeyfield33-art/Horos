@@ -15,7 +15,9 @@ from pathlib import Path
 from graph_gen_python.canonical import cjson_bytes, sha256_hex
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-VECTORS = json.loads((REPO_ROOT / "vectors" / "canonical-forms.json").read_text())
+VECTORS = json.loads(
+    (REPO_ROOT / "vectors" / "canonical-forms.json").read_text(encoding="utf-8")
+)
 
 
 class TestCjsonParity(unittest.TestCase):

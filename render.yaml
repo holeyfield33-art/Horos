@@ -13,6 +13,9 @@ services:
       # Bearer token required on every MCP request. Mark as a secret; do not sync.
       - key: HOROS_SERVER_SECRET
         sync: false
+      # Independent private Ed25519 signing seed: exactly 64 hex characters.
+      - key: HOROS_SIGNING_SEED
+        sync: false
       # Read-only GitHub token (contents scope) for private clones. Secret; do not sync.
       - key: GITHUB_TOKEN
         sync: false

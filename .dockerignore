@@ -6,3 +6,7 @@ dist
 .DS_Store
 **/.pytest_cache
 mcp/tests
+.venv*/
+.local/
+.env
+.env.*

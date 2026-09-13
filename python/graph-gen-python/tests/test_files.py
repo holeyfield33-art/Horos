@@ -54,7 +54,12 @@ class TestFiles(unittest.TestCase):
             outside = tmp_path / "secret.py"
             outside.write_text("SECRET = 1\n")
             link = repo_root / "escape_link.py"
-            link.symlink_to(outside)
+            try:
+                link.symlink_to(outside)
+            except OSError as exc:
+                if getattr(exc, "winerror", None) == 1314:
+                    self.skipTest("Windows symlink creation requires Developer Mode or elevated privilege")
+                raise
             with self.assertRaisesRegex(ValueError, "path escapes repo root"):
                 build_pyfile(repo_root, "escape_link.py")
 
