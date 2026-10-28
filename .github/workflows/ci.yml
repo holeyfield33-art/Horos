@@ -45,7 +45,7 @@ jobs:
           cache: "npm"
       - run: npm ci && npm run build
 
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
       - run: cd python/graph-gen-python && python3 -m unittest discover -s tests
@@ -67,7 +67,7 @@ jobs:
           npm run build
 
       - name: Setup Python (3.11)
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
 
