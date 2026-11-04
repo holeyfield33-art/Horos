@@ -1,4 +1,4 @@
 # Dev/test-only dependencies for the Horos MCP server.
 -r requirements.txt
-pytest==9.1.1
+pytest==9.2.0
 # httpx is pulled transitively by mcp and powers starlette's TestClient.
